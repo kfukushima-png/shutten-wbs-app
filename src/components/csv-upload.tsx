@@ -73,6 +73,7 @@ export default function CsvUpload({ storeId, onUploaded }: Props) {
     status: "not_started",
     visibleToOwner: (row["オーナー表示"] || row["visibleToOwner"] || "true") === "true",
     ownerSensitivity: (row["公開区分"] || row["ownerSensitivity"] || "safe") as OwnerSensitivity,
+    dependsOnPhase: row["前提フェーズ"] || row["dependsOnPhase"] || "",
     isManual: true,
   });
 
@@ -219,7 +220,7 @@ export default function CsvUpload({ storeId, onUploaded }: Props) {
                   <span className="text-red-600">タスク名</span>,
                   <span className="text-red-600">フェーズ</span>,
                   <span className="text-red-600">期限</span>,
-                  期限設定,実行者,詳細,オーナー共有文章,共有資料URL,オーナー表示,公開区分
+                  期限設定,実行者,詳細,オーナー共有文章,共有資料URL,オーナー表示,公開区分,前提フェーズ
                 </div>
                 <p className="mt-1 text-gray-500"><span className="text-red-600">赤字</span>は必須列です。他は省略可能です。</p>
               </div>
@@ -236,13 +237,17 @@ export default function CsvUpload({ storeId, onUploaded }: Props) {
                       <td className="py-1 font-medium">オーナー表示</td>
                       <td className="py-1"><span className="font-mono bg-gray-100 px-1 rounded">true</span> または <span className="font-mono bg-gray-100 px-1 rounded">false</span></td>
                     </tr>
-                    <tr>
+                    <tr className="border-b border-gray-100">
                       <td className="py-1 font-medium">公開区分</td>
                       <td className="py-1">
                         <span className="font-mono bg-green-50 text-green-700 px-1 rounded">safe</span>{" "}
                         <span className="font-mono bg-yellow-50 text-yellow-700 px-1 rounded">caution</span>{" "}
                         <span className="font-mono bg-red-50 text-red-700 px-1 rounded">secret</span>
                       </td>
+                    </tr>
+                    <tr>
+                      <td className="py-1 font-medium">前提フェーズ</td>
+                      <td className="py-1">完了を待つフェーズ名を入力（例: <span className="font-mono bg-gray-100 px-1 rounded">不動産契約</span>）空欄なら依存なし</td>
                     </tr>
                   </tbody>
                 </table>

@@ -26,6 +26,7 @@ export default function TemplatesPage() {
     ownerResources: "",
     visibleToOwner: true,
     ownerSensitivity: "safe" as OwnerSensitivity,
+    dependsOnPhase: "",
     sortOrder: 0,
   });
 
@@ -54,7 +55,7 @@ export default function TemplatesPage() {
     e.preventDefault();
     await createTaskTemplate({ ...form, brandId: selectedBrandId });
     setShowAdd(false);
-    setForm({ name: "", phase: "", defaultDurationDays: 30, deadlineDescription: "", details: "", ownerMessage: "", ownerResources: "", visibleToOwner: true, ownerSensitivity: "safe", sortOrder: templates.length });
+    setForm({ name: "", phase: "", defaultDurationDays: 30, deadlineDescription: "", details: "", ownerMessage: "", ownerResources: "", visibleToOwner: true, ownerSensitivity: "safe", dependsOnPhase: "", sortOrder: templates.length });
     loadTemplates();
   };
 
@@ -136,7 +137,7 @@ export default function TemplatesPage() {
         </div>
         {brands.length === 0 && (
           <p className="text-sm text-gray-400 mt-2">
-            まずブランドを作成してください → <a href="/admin/brands" className="text-blue-600 hover:underline">ブランド管理</a>
+            まずブランドを作成してください → <a href="/settings/brands" className="text-blue-600 hover:underline">ブランド管理</a>
           </p>
         )}
       </div>

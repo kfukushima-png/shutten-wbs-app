@@ -1,10 +1,13 @@
 export type UserRole = "admin" | "pm" | "owner";
+export type UserStatus = "active" | "pending";
 
 export interface AppUser {
   uid: string;
   email: string;
   displayName: string;
+  photoURL: string;
   role: UserRole;
+  status: UserStatus;
   storeIds: string[];
   createdAt: Date;
 }
@@ -47,6 +50,7 @@ export interface TaskTemplate {
   ownerResources: string;
   visibleToOwner: boolean;
   ownerSensitivity: OwnerSensitivity;
+  dependsOnPhase: string; // この前フェーズが完了しないと開始できない
   sortOrder: number;
 }
 
@@ -66,9 +70,21 @@ export interface Task {
   status: TaskStatus;
   visibleToOwner: boolean;
   ownerSensitivity: OwnerSensitivity;
+  dependsOnPhase: string;
   isManual: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  storeId: string;
+  authorId: string;
+  authorName: string;
+  authorPhotoURL: string;
+  content: string;
+  createdAt: Date;
 }
 
 export interface Store {

@@ -111,7 +111,7 @@ export default function BrandsPage() {
                 {brand.description && <p className="text-sm text-gray-500 mt-0.5">{brand.description}</p>}
               </div>
               <div className="flex items-center gap-2">
-                <Link href={`/admin/templates?brand=${brand.id}`}
+                <Link href={`/settings/templates?brand=${brand.id}`}
                   className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm hover:bg-blue-100">
                   テンプレート編集
                 </Link>

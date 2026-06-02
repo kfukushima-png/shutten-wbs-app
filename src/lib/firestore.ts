@@ -13,7 +13,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { getFirebaseDb } from "./firebase";
-import type { Store, Task, TaskTemplate, AppUser, TaskStatus, Brand } from "@/types";
+import type { Store, Task, TaskTemplate, TaskComment, AppUser, TaskStatus, Brand } from "@/types";
 
 function db() {
   return getFirebaseDb();
@@ -201,6 +201,7 @@ export async function generateTasksFromTemplates(
       status: "not_started",
       visibleToOwner: tpl.ownerSensitivity === "safe" ? tpl.visibleToOwner : false,
       ownerSensitivity: tpl.ownerSensitivity || "safe",
+      dependsOnPhase: tpl.dependsOnPhase || "",
       isManual: false,
     });
   }
@@ -248,4 +249,39 @@ export async function bulkCreateTasks(tasks: Omit<Task, "id" | "createdAt" | "up
     results.push(id);
   }
   return results;
+}
+
+// --- Comments ---
+export async function getCommentsByTask(taskId: string): Promise<TaskComment[]> {
+  const snap = await getDocs(
+    query(collection(db(), "comments"), where("taskId", "==", taskId), orderBy("createdAt", "desc"))
+  );
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return { id: d.id, ...data, createdAt: toDate(data.createdAt) } as TaskComment;
+  });
+}
+
+export async function createComment(data: Omit<TaskComment, "id" | "createdAt">) {
+  const ref = await addDoc(collection(db(), "comments"), {
+    ...data,
+    createdAt: Timestamp.now(),
+  });
+  return ref.id;
+}
+
+export async function deleteComment(id: string) {
+  await deleteDoc(doc(db(), "comments", id));
+}
+
+export async function getCommentCountsByStore(storeId: string): Promise<Record<string, number>> {
+  const snap = await getDocs(
+    query(collection(db(), "comments"), where("storeId", "==", storeId))
+  );
+  const counts: Record<string, number> = {};
+  snap.docs.forEach((d) => {
+    const taskId = d.data().taskId;
+    counts[taskId] = (counts[taskId] || 0) + 1;
+  });
+  return counts;
 }

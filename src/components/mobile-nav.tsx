@@ -7,13 +7,12 @@ import { useState } from "react";
 import type { UserRole } from "@/types";
 
 const mobileNavItems: { label: string; href: string; roles: UserRole[] }[] = [
-  { label: "ダッシュボード", href: "/admin", roles: ["admin"] },
-  { label: "ブランド", href: "/admin/brands", roles: ["admin"] },
-  { label: "テンプレート", href: "/admin/templates", roles: ["admin"] },
-  { label: "ユーザー", href: "/admin/users", roles: ["admin"] },
-  { label: "ダッシュボード", href: "/pm", roles: ["pm"] },
-  { label: "店舗", href: "/pm/stores", roles: ["pm"] },
-  { label: "マイ店舗", href: "/owner", roles: ["owner"] },
+  { label: "ダッシュボード", href: "/", roles: ["admin", "pm", "owner"] },
+  { label: "店舗管理", href: "/stores", roles: ["admin", "pm"] },
+  { label: "ブランド", href: "/settings/brands", roles: ["admin"] },
+  { label: "テンプレート", href: "/settings/templates", roles: ["admin"] },
+  { label: "ユーザー", href: "/settings/users", roles: ["admin", "pm"] },
+  { label: "外部連携", href: "/settings/integrations", roles: ["admin", "pm"] },
 ];
 
 export default function MobileNav() {
@@ -44,18 +43,21 @@ export default function MobileNav() {
         <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setOpen(false)}>
           <div className="absolute right-0 top-14 w-64 bg-white shadow-lg rounded-bl-xl p-4" onClick={(e) => e.stopPropagation()}>
             <nav className="space-y-1">
-              {items.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className={`block px-4 py-2.5 rounded-lg text-sm font-medium ${
-                    pathname === item.href ? "bg-blue-50 text-blue-700" : "text-gray-600"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {items.map((item) => {
+                const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className={`block px-4 py-2.5 rounded-lg text-sm font-medium ${
+                      isActive ? "bg-blue-50 text-blue-700" : "text-gray-600"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
             </nav>
             <div className="mt-4 pt-4 border-t border-gray-100">
               <p className="text-xs text-gray-500 truncate mb-2">{appUser.email}</p>

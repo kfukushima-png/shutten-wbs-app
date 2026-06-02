@@ -41,6 +41,7 @@ export default function AddTaskModal({ storeId, onClose, onCreated }: Props) {
       status: "not_started",
       visibleToOwner: form.ownerSensitivity === "safe" ? form.visibleToOwner : false,
       ownerSensitivity: form.ownerSensitivity,
+      dependsOnPhase: "",
       isManual: true,
     });
     onCreated();

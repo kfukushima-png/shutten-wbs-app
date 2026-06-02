@@ -290,3 +290,65 @@ git push origin main
 - `safe` = オーナーに見せて問題ない（公開OK）
 - `caution` = 内容次第で注意が必要（要確認）
 - `secret` = オーナーには絶対見せない（非公開）
+
+**前提フェーズ:**
+- 完了を待つフェーズ名を入力（例: `不動産契約`）
+- 空欄なら依存関係なし
+
+---
+
+## 11. データの安全性とバックアップ
+
+### アップデートしてもデータが消えない理由
+
+```
+コード（Next.js）→ Vercelにデプロイ → アップデートで上書きされる
+データ（Firestore）→ Firebaseに保存  → アップデートに一切影響しない
+
+コード = 画面の見た目・操作ロジック
+データ = テンプレート、タスク、コメント、ユーザー情報
+
+→ 完全に別の場所に保存されているので、コードを何度更新してもデータは消えません
+```
+
+### Firestoreの自動バックアップ設定（推奨）
+
+万が一に備えて、毎日の自動バックアップを設定してください。
+
+1. GCP Console → https://console.cloud.google.com/
+2. プロジェクトを選択
+3. **Cloud Storage** → バケットを作成（例: `wbs-backup-daily`）
+4. **Cloud Scheduler** → ジョブを作成
+
+```
+名前: firestore-daily-backup
+スケジュール: 0 3 * * * (毎日AM3時)
+ターゲット: HTTP
+URL: https://firestore.googleapis.com/v1/projects/[PROJECT_ID]/databases/(default):exportDocuments
+メソッド: POST
+本文: {"outputUriPrefix": "gs://wbs-backup-daily"}
+認証: OAuthトークン (サービスアカウント)
+```
+
+または Firebase Console → Firestore → 「エクスポートとインポート」から手動バックアップも可能です。
+
+---
+
+## 12. 環境変数一覧
+
+Vercelに設定するすべての環境変数：
+
+| 変数名 | 用途 | 必須 |
+|--------|------|------|
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase Client | ○ |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Client | ○ |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase Client | ○ |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase Client | ○ |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase Client | ○ |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase Client | ○ |
+| `FIREBASE_ADMIN_PROJECT_ID` | Firebase Admin | ○ |
+| `FIREBASE_ADMIN_CLIENT_EMAIL` | Firebase Admin | ○ |
+| `FIREBASE_ADMIN_PRIVATE_KEY` | Firebase Admin | ○ |
+| `SF_WEBHOOK_SECRET` | Salesforce連携 | △ |
+| `SLACK_WEBHOOK_URL` | Slack通知 | △ |
+| `CRON_SECRET` | 定期実行認証 | △ |
