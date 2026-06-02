@@ -34,7 +34,7 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className={`${collapsed ? "w-0 overflow-hidden" : "w-64"} bg-white border-r border-gray-200 min-h-screen flex flex-col max-md:hidden shrink-0 sticky top-0 h-screen transition-all duration-200`}>
+      <aside className={`${collapsed ? "w-0 overflow-hidden" : "w-64"} bg-white border-r border-gray-200 h-screen flex flex-col max-md:hidden shrink-0 overflow-y-auto transition-all duration-200`}>
         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-gray-800">WBS管理</h1>

@@ -29,10 +29,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!appUser) return null;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <MobileNav />
-      <main className="flex-1 p-6 max-md:p-4">{children}</main>
+      <main className="flex-1 overflow-y-auto p-6 max-md:p-4">{children}</main>
     </div>
   );
 }
