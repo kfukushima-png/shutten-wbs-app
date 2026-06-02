@@ -57,14 +57,13 @@ export default function StoreDetailPage() {
     loadData();
   }, [loading, appUser, storeId]);
 
-  // ガントモードに切り替えた時、初回は完了以外を自動選択
+  // タスクが読み込まれたら完了以外を自動選択（初回のみ）
   useEffect(() => {
-    if (view === "gantt" && !ganttInitialized && tasks.length > 0) {
-      const undoneTasks = tasks.filter((t) => t.status !== "done");
-      setGanttSelectedIds(new Set(undoneTasks.map((t) => t.id)));
+    if (!ganttInitialized && tasks.length > 0) {
+      setGanttSelectedIds(new Set(tasks.filter((t) => t.status !== "done").map((t) => t.id)));
       setGanttInitialized(true);
     }
-  }, [view, tasks, ganttInitialized]);
+  }, [tasks, ganttInitialized]);
 
   const toggleGanttSelect = (taskId: string) => {
     setGanttSelectedIds((prev) => {
@@ -74,21 +73,7 @@ export default function StoreDetailPage() {
     });
   };
 
-  const handleSelectAll = () => {
-    if (ganttSelectedIds.size === tasks.length) {
-      setGanttSelectedIds(new Set());
-    } else {
-      setGanttSelectedIds(new Set(tasks.map((t) => t.id)));
-    }
-  };
-
-  const handleSelectUndone = () => {
-    setGanttSelectedIds(new Set(tasks.filter((t) => t.status !== "done").map((t) => t.id)));
-  };
-
-  const ganttTasks = ganttSelectedIds.size > 0
-    ? tasks.filter((t) => ganttSelectedIds.has(t.id))
-    : tasks;
+  const ganttTasks = tasks.filter((t) => ganttSelectedIds.has(t.id));
 
   if (loading) return <div className="text-gray-500">読み込み中...</div>;
   if (!appUser) return <div className="text-red-500">ログインが必要です</div>;
@@ -145,27 +130,15 @@ export default function StoreDetailPage() {
 
       {view === "table" ? (
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <TaskTable tasks={tasks} viewerRole={appUser.role} storeId={storeId} onRefresh={loadData} />
+          <TaskTable tasks={tasks} viewerRole={appUser.role} storeId={storeId} onRefresh={loadData}
+            ganttSelectedIds={ganttSelectedIds} onToggleGantt={toggleGanttSelect} />
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-gray-700">表示するタスクを選択 ({ganttSelectedIds.size}/{tasks.length}件)</h3>
-              <div className="flex gap-2">
-                <button onClick={handleSelectUndone} className="text-xs text-blue-600 hover:underline">完了以外</button>
-                <button onClick={handleSelectAll} className="text-xs text-blue-600 hover:underline">
-                  {ganttSelectedIds.size === tasks.length ? "全解除" : "全選択"}
-                </button>
-              </div>
-            </div>
-            <TaskTable tasks={tasks} viewerRole={appUser.role} storeId={storeId} onRefresh={loadData}
-              showCheckboxes selectedTaskIds={ganttSelectedIds} onToggleSelect={toggleGanttSelect} />
-          </div>
-          {ganttSelectedIds.size > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <GanttChart tasks={ganttTasks} openingDate={store.openingDate} />
-            </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          {ganttTasks.length > 0 ? (
+            <GanttChart tasks={ganttTasks} openingDate={store.openingDate} />
+          ) : (
+            <p className="text-gray-400 text-center py-8">テーブルビューでガント表示するタスクを選択してください</p>
           )}
         </div>
       )}

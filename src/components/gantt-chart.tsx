@@ -34,10 +34,18 @@ function safeDate(d: unknown): Date | null {
   return null;
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  not_started: "未着手",
+  in_progress: "進行中",
+  done: "完了",
+};
+
 export default function GanttChart({ tasks, openingDate }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [viewMode, setViewMode] = useState<"auto" | "day" | "week" | "month">("auto");
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [popupPos, setPopupPos] = useState<{ x: number; y: number } | null>(null);
 
   // コンテナ幅を監視
   useEffect(() => {
@@ -184,7 +192,13 @@ export default function GanttChart({ tasks, openingDate }: Props) {
         </div>
       </div>
 
-      <div ref={containerRef} className="overflow-x-auto border border-gray-200 rounded-lg bg-white">
+      <div ref={containerRef} className="overflow-x-auto border border-gray-200 rounded-lg bg-white relative"
+        onClick={(e) => {
+          if ((e.target as Element).tagName === "DIV") {
+            setSelectedTask(null);
+            setPopupPos(null);
+          }
+        }}>
         {containerWidth > 0 && (
           <svg width={totalWidth} height={totalHeight} className="select-none">
             {/* ヘッダー背景 */}
@@ -243,24 +257,35 @@ export default function GanttChart({ tasks, openingDate }: Props) {
 
             {/* タスクバー */}
             {chartData.map((d) => (
-              <g key={d.task.id}>
+              <g key={d.task.id} className="cursor-pointer"
+                onClick={(e) => {
+                  const svgRect = containerRef.current?.getBoundingClientRect();
+                  if (svgRect) {
+                    setSelectedTask(d.task);
+                    setPopupPos({ x: e.clientX - svgRect.left, y: d.barY + BAR_HEIGHT + 4 });
+                  }
+                }}>
                 {/* ラベル */}
                 <text x={8} y={d.barY + BAR_HEIGHT / 2 + 4} fontSize={11} fill="#374151"
                   clipPath="url(#labelClip)">
                   {d.label}
                 </text>
+                {/* ホバー背景 */}
+                <rect x={LEFT_LABEL_WIDTH} y={d.rowY} width={totalWidth - LEFT_LABEL_WIDTH} height={ROW_HEIGHT}
+                  fill="transparent" className="hover:fill-blue-50/40" />
                 {/* バー */}
                 <rect x={d.barX} y={d.barY} width={d.barWidth} height={BAR_HEIGHT}
-                  rx={4} ry={4} fill={d.color} opacity={0.85} />
+                  rx={4} ry={4} fill={d.color} opacity={selectedTask?.id === d.task.id ? 1 : 0.85}
+                  stroke={selectedTask?.id === d.task.id ? "#1D4ED8" : "none"} strokeWidth={2} />
                 {/* 進捗バー */}
                 {d.task.status === "in_progress" && (
                   <rect x={d.barX} y={d.barY} width={d.barWidth * 0.5} height={BAR_HEIGHT}
-                    rx={4} ry={4} fill={d.color} opacity={1} />
+                    rx={4} ry={4} fill={d.color} opacity={1} style={{ pointerEvents: "none" }} />
                 )}
                 {/* バー内日付 */}
                 {d.barWidth > 60 && (
                   <text x={d.barX + 6} y={d.barY + BAR_HEIGHT / 2 + 4}
-                    fontSize={10} fill="white" fontWeight={500}>
+                    fontSize={10} fill="white" fontWeight={500} style={{ pointerEvents: "none" }}>
                     {format(safeDate(d.task.startDate) || new Date(), "M/d")}〜{format(safeDate(d.task.deadline) || new Date(), "M/d")}
                   </text>
                 )}
@@ -274,6 +299,58 @@ export default function GanttChart({ tasks, openingDate }: Props) {
               </clipPath>
             </defs>
           </svg>
+        )}
+
+        {/* タスク詳細ポップアップ */}
+        {selectedTask && popupPos && (
+          <div
+            className="absolute bg-white border border-gray-200 rounded-xl shadow-xl p-4 z-20 w-72"
+            style={{ left: Math.min(popupPos.x, containerWidth - 300), top: popupPos.y }}
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex-1 min-w-0">
+                {selectedTask.taskCode && (
+                  <span className="text-[10px] text-gray-400 font-mono bg-gray-100 px-1 rounded">{selectedTask.taskCode}</span>
+                )}
+                <h4 className="font-bold text-gray-800 text-sm mt-0.5">{selectedTask.name}</h4>
+              </div>
+              <button onClick={() => { setSelectedTask(null); setPopupPos(null); }}
+                className="text-gray-400 hover:text-gray-600 ml-2 shrink-0">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-1.5 text-xs text-gray-600">
+              <div className="flex justify-between">
+                <span className="text-gray-400">フェーズ</span>
+                <span>{selectedTask.phase}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">期間</span>
+                <span>{format(safeDate(selectedTask.startDate) || new Date(), "M/d")} 〜 {format(safeDate(selectedTask.deadline) || new Date(), "M/d")}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">ステータス</span>
+                <span className={`font-medium ${
+                  selectedTask.status === "done" ? "text-green-600" :
+                  selectedTask.status === "in_progress" ? "text-blue-600" : "text-gray-500"
+                }`}>{STATUS_LABELS[selectedTask.status] || selectedTask.status}</span>
+              </div>
+              {selectedTask.assigneeName && (
+                <div className="flex justify-between">
+                  <span className="text-gray-400">担当者</span>
+                  <span>{selectedTask.assigneeName}</span>
+                </div>
+              )}
+              {selectedTask.details && (
+                <div className="pt-1.5 border-t border-gray-100 mt-1.5">
+                  <span className="text-gray-400 block mb-0.5">詳細</span>
+                  <p className="text-gray-700 whitespace-pre-wrap line-clamp-3">{selectedTask.details}</p>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>

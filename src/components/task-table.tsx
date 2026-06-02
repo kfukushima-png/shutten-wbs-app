@@ -30,9 +30,8 @@ interface Props {
   viewerRole: UserRole;
   storeId?: string;
   onRefresh: () => void;
-  selectedTaskIds?: Set<string>;
-  onToggleSelect?: (taskId: string) => void;
-  showCheckboxes?: boolean;
+  ganttSelectedIds?: Set<string>;
+  onToggleGantt?: (taskId: string) => void;
 }
 
 interface TaskRowProps {
@@ -42,14 +41,13 @@ interface TaskRowProps {
   blocked: boolean;
   isExpanded: boolean;
   commentCount: number;
-  showCheckboxes?: boolean;
-  selectedTaskIds?: Set<string>;
+  ganttSelectedIds?: Set<string>;
   isDraggable: boolean;
   editingId: string | null;
   editField: "startDate" | "deadline";
   editDate: string;
   storeId?: string;
-  onToggleSelect?: (taskId: string) => void;
+  onToggleGantt?: (taskId: string) => void;
   onToggleExpand: () => void;
   onStatusChange: (taskId: string, status: TaskStatus) => void;
   onStartEdit: (taskId: string, field: "startDate" | "deadline", date: string) => void;
@@ -93,9 +91,9 @@ function SortableTaskRow(props: TaskRowProps) {
 
 function TaskRowContent({
   task, canEdit, overdue, blocked, isExpanded, commentCount,
-  showCheckboxes, selectedTaskIds, isDraggable,
+  ganttSelectedIds, isDraggable,
   editingId, editField, editDate, storeId,
-  onToggleSelect, onToggleExpand, onStatusChange,
+  onToggleGantt, onToggleExpand, onStatusChange,
   onStartEdit, onDateSave, onEditDateChange, onDelete, onEditTask,
   onRefresh, onCommentAdded, getBlockedByNames,
   dragListeners, dragAttributes,
@@ -120,12 +118,24 @@ function TaskRowContent({
             </svg>
           </div>
         )}
-        {showCheckboxes && (
-          <div className="pr-2 w-8 shrink-0">
-            <input type="checkbox"
-              checked={selectedTaskIds?.has(task.id) || false}
-              onChange={() => onToggleSelect?.(task.id)}
-              className="rounded" />
+        {/* ガント表示トグル */}
+        {onToggleGantt && (
+          <div className="pr-1 w-7 shrink-0">
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleGantt(task.id); }}
+              className={`w-5 h-5 rounded flex items-center justify-center text-[10px] transition-colors ${
+                ganttSelectedIds?.has(task.id)
+                  ? "bg-blue-100 text-blue-600"
+                  : "bg-gray-100 text-gray-300 hover:text-gray-500"
+              }`}
+              title={ganttSelectedIds?.has(task.id) ? "ガントから除外" : "ガントに表示"}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                <rect x="3" y="4" width="7" height="4" rx="1" fill={ganttSelectedIds?.has(task.id) ? "currentColor" : "none"} />
+                <rect x="6" y="10" width="12" height="4" rx="1" fill={ganttSelectedIds?.has(task.id) ? "currentColor" : "none"} />
+                <rect x="4" y="16" width="9" height="4" rx="1" fill={ganttSelectedIds?.has(task.id) ? "currentColor" : "none"} />
+              </svg>
+            </button>
           </div>
         )}
         {/* タスク名 */}
@@ -276,7 +286,7 @@ function TaskRowContent({
   );
 }
 
-export default function TaskTable({ tasks, viewerRole, storeId, onRefresh, selectedTaskIds, onToggleSelect, showCheckboxes }: Props) {
+export default function TaskTable({ tasks, viewerRole, storeId, onRefresh, ganttSelectedIds, onToggleGantt }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editField, setEditField] = useState<"startDate" | "deadline">("deadline");
   const [editDate, setEditDate] = useState("");
@@ -402,7 +412,7 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh, selec
             <thead>
               <tr className="border-b border-gray-200 text-left">
                 {isDraggable && <th className="pb-3 w-6"></th>}
-                {showCheckboxes && <th className="pb-3 pr-2 w-8"></th>}
+                {onToggleGantt && <th className="pb-3 w-7"></th>}
                 <th className="pb-3 pr-4 font-medium text-gray-500">タスク</th>
                 <th className="pb-3 pr-4 font-medium text-gray-500 w-24">フェーズ</th>
                 <th className="pb-3 pr-4 font-medium text-gray-500 w-24">開始日</th>
@@ -430,14 +440,13 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh, selec
                       blocked={blocked}
                       isExpanded={isExpanded}
                       commentCount={commentCount}
-                      showCheckboxes={showCheckboxes}
-                      selectedTaskIds={selectedTaskIds}
+                      ganttSelectedIds={ganttSelectedIds}
                       isDraggable={isDraggable}
                       editingId={editingId}
                       editField={editField}
                       editDate={editDate}
                       storeId={storeId}
-                      onToggleSelect={onToggleSelect}
+                      onToggleGantt={onToggleGantt}
                       onToggleExpand={() => setExpandedTaskId(isExpanded ? null : task.id)}
                       onStatusChange={handleStatusChange}
                       onStartEdit={(id, field, date) => { setEditingId(id); setEditField(field); setEditDate(date); }}
