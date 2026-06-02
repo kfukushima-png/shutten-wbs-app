@@ -37,16 +37,20 @@ export default function StoreDetailPage() {
   const isOwner = appUser?.role === "owner";
 
   const loadData = async () => {
-    const [s, allTasks, allComments] = await Promise.all([
+    const [s, allTasks] = await Promise.all([
       getStore(storeId),
       getTasksByStore(storeId),
-      getCommentsByStore(storeId),
     ]);
     setStore(s);
     const visibleTasks = isOwner ? allTasks.filter((t) => t.visibleToOwner) : allTasks;
     setTasks(visibleTasks);
     const taskMap = new Map(allTasks.map((t) => [t.id, t]));
-    setComments(allComments.map((c) => ({ ...c, taskName: taskMap.get(c.taskId)?.name })));
+    try {
+      const allComments = await getCommentsByStore(storeId);
+      setComments(allComments.map((c) => ({ ...c, taskName: taskMap.get(c.taskId)?.name })));
+    } catch {
+      setComments([]);
+    }
   };
 
   useEffect(() => {
