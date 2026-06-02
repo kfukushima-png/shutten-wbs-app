@@ -112,9 +112,15 @@ export async function POST(req: NextRequest) {
 
     // --- 基準日フェーズの場合: 基準日を更新し、全タスクの期限を再計算 ---
     if (mapping.isBaseDate) {
-      await adminDb.collection("stores").doc(storeId).update({
-        baseDate: Timestamp.fromDate(phaseChangedAt),
-      });
+      // フェーズごとの基準日を更新
+      const storeDoc = await adminDb.collection("stores").doc(storeId).get();
+      const phaseDates = storeDoc.data()?.phaseDates || {};
+      phaseDates[mapping.sfPhaseCode] = {
+        date: phaseChangedAt.toISOString().split("T")[0],
+        type: "manual",
+        label: mapping.sfPhaseName,
+      };
+      await adminDb.collection("stores").doc(storeId).update({ phaseDates });
 
       // テンプレートの日数をもとに期限を再計算
       const tasksSnap = await adminDb
@@ -142,6 +148,20 @@ export async function POST(req: NextRequest) {
         }
       }
       await batch.commit();
+    }
+
+    // --- autoタイプのフェーズ: 日付を自動記録 ---
+    if (!mapping.isBaseDate) {
+      const storeDoc2 = await adminDb.collection("stores").doc(storeId).get();
+      const phaseDates2 = storeDoc2.data()?.phaseDates || {};
+      if (!phaseDates2[mapping.sfPhaseCode]?.date) {
+        phaseDates2[mapping.sfPhaseCode] = {
+          date: phaseChangedAt.toISOString().split("T")[0],
+          type: "auto",
+          label: mapping.sfPhaseName,
+        };
+        await adminDb.collection("stores").doc(storeId).update({ phaseDates: phaseDates2 });
+      }
     }
 
     // --- 該当フェーズのタスクを「進行中」に変更 ---

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut as fbSignOut, User } from "firebase/auth";
-import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, getDocs, query, where, collection, deleteDoc, Timestamp } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb, getGoogleProvider } from "./firebase";
 import type { AppUser, UserRole } from "@/types";
 
@@ -49,18 +49,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsPending(false);
           }
         } else {
-          // 初回ログイン: 承認待ちユーザーを自動作成
-          await setDoc(userRef, {
-            email: firebaseUser.email || "",
-            displayName: firebaseUser.displayName || "",
-            photoURL: firebaseUser.photoURL || "",
-            role: "owner",
-            status: "pending",
-            storeIds: [],
-            createdAt: Timestamp.now(),
-          });
-          setAppUser(null);
-          setIsPending(true);
+          // 事前登録チェック
+          const preRegSnap = await getDocs(
+            query(collection(db, "preRegisteredUsers"), where("email", "==", firebaseUser.email))
+          );
+
+          if (!preRegSnap.empty) {
+            // 事前登録済み → 自動承認
+            const preReg = preRegSnap.docs[0].data();
+            const userData = {
+              email: firebaseUser.email || "",
+              displayName: firebaseUser.displayName || "",
+              photoURL: firebaseUser.photoURL || "",
+              role: preReg.role || "owner",
+              status: "active",
+              storeIds: preReg.storeIds || [],
+              createdAt: Timestamp.now(),
+            };
+            await setDoc(userRef, userData);
+            await deleteDoc(preRegSnap.docs[0].ref);
+            setAppUser({ uid: firebaseUser.uid, ...userData, createdAt: new Date() } as AppUser);
+            setIsPending(false);
+          } else {
+            // 未登録 → 承認待ち
+            await setDoc(userRef, {
+              email: firebaseUser.email || "",
+              displayName: firebaseUser.displayName || "",
+              photoURL: firebaseUser.photoURL || "",
+              role: "owner",
+              status: "pending",
+              storeIds: [],
+              createdAt: Timestamp.now(),
+            });
+            setAppUser(null);
+            setIsPending(true);
+          }
         }
       } else {
         setAppUser(null);

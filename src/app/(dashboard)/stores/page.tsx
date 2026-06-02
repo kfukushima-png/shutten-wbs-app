@@ -39,11 +39,20 @@ export default function StoresPage() {
     if (!appUser || !form.brandId) return;
     setCreating(true);
     const brand = brands.find((b) => b.id === form.brandId);
+    const phaseDates: Record<string, { date: string | null; type: string; label: string }> = {};
+    const { PHASE_DEFINITIONS } = await import("@/types");
+    for (const pd of PHASE_DEFINITIONS) {
+      phaseDates[pd.code] = {
+        date: pd.code === "01" ? form.baseDate : null,
+        type: pd.dateType,
+        label: pd.dateLabel,
+      };
+    }
     const storeId = await createStore({
       name: form.name, brandId: form.brandId, brandName: brand?.name || "",
-      ownerId: "", ownerName: form.ownerName, baseDate: new Date(form.baseDate),
+      ownerId: "", ownerName: form.ownerName, phaseDates, openingDate: null,
     });
-    await generateTasksFromTemplates(storeId, form.brandId, new Date(form.baseDate), appUser.uid, appUser.displayName);
+    await generateTasksFromTemplates(storeId, form.brandId, phaseDates, appUser.uid, appUser.displayName);
     setShowAdd(false);
     setForm({ name: "", ownerName: "", baseDate: "", brandId: "" });
     setCreating(false);
@@ -137,7 +146,9 @@ export default function StoresPage() {
                 )}
               </div>
               <p className="text-sm text-gray-500 mt-1">オーナー: {store.ownerName}</p>
-              <p className="text-xs text-gray-400 mt-2">基準日: {store.baseDate.toLocaleDateString("ja-JP")}</p>
+              {store.phaseDates?.["01"]?.date && (
+                <p className="text-xs text-gray-400 mt-2">加盟契約日: {new Date(store.phaseDates["01"].date).toLocaleDateString("ja-JP")}</p>
+              )}
             </Link>
             <button
               onClick={(e) => { e.preventDefault(); setDeleteTarget(store); }}

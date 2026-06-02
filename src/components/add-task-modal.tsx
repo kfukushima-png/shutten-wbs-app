@@ -26,12 +26,15 @@ export default function AddTaskModal({ storeId, onClose, onCreated }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const dl = new Date(form.deadline);
     await createTask({
       storeId,
       templateId: null,
       name: form.name,
       phase: form.phase,
-      deadline: new Date(form.deadline),
+      basePhaseCode: "",
+      idealDeadline: dl,
+      deadline: dl,
       deadlineDescription: form.deadlineDescription,
       assigneeId: "",
       assigneeName: form.assigneeName,

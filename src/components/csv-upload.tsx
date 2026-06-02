@@ -58,24 +58,29 @@ export default function CsvUpload({ storeId, onUploaded }: Props) {
     return rowErrors;
   };
 
-  const parseRow = (row: Record<string, string>): Omit<Task, "id" | "createdAt" | "updatedAt"> => ({
-    storeId,
-    templateId: null,
-    name: row["タスク名"] || row["name"] || "",
-    phase: row["フェーズ"] || row["phase"] || "",
-    deadline: new Date(row["期限"] || row["deadline"] || new Date()),
-    deadlineDescription: row["期限設定"] || row["deadlineDescription"] || "",
-    assigneeId: "",
-    assigneeName: row["実行者"] || row["assignee"] || "",
-    details: row["詳細"] || row["details"] || "",
-    ownerMessage: row["オーナー共有文章"] || row["ownerMessage"] || "",
-    ownerResources: row["共有資料URL"] || row["ownerResources"] || "",
-    status: "not_started",
-    visibleToOwner: (row["オーナー表示"] || row["visibleToOwner"] || "true") === "true",
-    ownerSensitivity: (row["公開区分"] || row["ownerSensitivity"] || "safe") as OwnerSensitivity,
-    dependsOnPhase: row["前提フェーズ"] || row["dependsOnPhase"] || "",
-    isManual: true,
-  });
+  const parseRow = (row: Record<string, string>): Omit<Task, "id" | "createdAt" | "updatedAt"> => {
+    const dl = new Date(row["期限"] || row["deadline"] || new Date());
+    return {
+      storeId,
+      templateId: null,
+      name: row["タスク名"] || row["name"] || "",
+      phase: row["フェーズ"] || row["phase"] || "",
+      basePhaseCode: row["基準フェーズコード"] || row["basePhaseCode"] || "",
+      idealDeadline: dl,
+      deadline: dl,
+      deadlineDescription: row["期限設定"] || row["deadlineDescription"] || "",
+      assigneeId: "",
+      assigneeName: row["実行者"] || row["assignee"] || "",
+      details: row["詳細"] || row["details"] || "",
+      ownerMessage: row["オーナー共有文章"] || row["ownerMessage"] || "",
+      ownerResources: row["共有資料URL"] || row["ownerResources"] || "",
+      status: "not_started",
+      visibleToOwner: (row["オーナー表示"] || row["visibleToOwner"] || "true") === "true",
+      ownerSensitivity: (row["公開区分"] || row["ownerSensitivity"] || "safe") as OwnerSensitivity,
+      dependsOnPhase: row["前提フェーズ"] || row["dependsOnPhase"] || "",
+      isManual: true,
+    };
+  };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

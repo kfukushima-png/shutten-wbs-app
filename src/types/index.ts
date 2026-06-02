@@ -14,9 +14,6 @@ export interface AppUser {
 
 export type TaskStatus = "not_started" | "in_progress" | "done";
 
-// "safe" = オーナーに見せて問題ない
-// "caution" = 内容次第で注意が必要（例: 内装工事の見積もり）
-// "secret" = オーナーには絶対見せない（例: 祝福の花の発注）
 export type OwnerSensitivity = "safe" | "caution" | "secret";
 
 export const sensitivityLabels: Record<OwnerSensitivity, string> = {
@@ -31,6 +28,30 @@ export const sensitivityColors: Record<OwnerSensitivity, string> = {
   secret: "bg-red-100 text-red-700",
 };
 
+// フェーズ定義
+export interface PhaseDate {
+  date: Date | null;
+  type: "auto" | "manual"; // auto=フェーズ変更時に自動記録, manual=手入力
+  label: string;
+}
+
+export const PHASE_DEFINITIONS: {
+  code: string;
+  name: string;
+  dateType: "auto" | "manual";
+  dateLabel: string;
+}[] = [
+  { code: "01", name: "不動産探し中", dateType: "manual", dateLabel: "加盟契約日" },
+  { code: "02", name: "物件内見中", dateType: "auto", dateLabel: "物件内見開始日" },
+  { code: "03", name: "不動産審査中", dateType: "auto", dateLabel: "審査開始日" },
+  { code: "04", name: "現場調査", dateType: "auto", dateLabel: "現場調査開始日" },
+  { code: "05", name: "不動産契約", dateType: "manual", dateLabel: "契約予定日" },
+  { code: "06", name: "内装検討中", dateType: "auto", dateLabel: "内装検討開始日" },
+  { code: "07", name: "施工実施中", dateType: "manual", dateLabel: "完工予定日" },
+  { code: "08", name: "備品設置中", dateType: "auto", dateLabel: "備品設置開始日" },
+  { code: "09", name: "出店完了", dateType: "manual", dateLabel: "出店予定日" },
+];
+
 export interface Brand {
   id: string;
   name: string;
@@ -43,14 +64,15 @@ export interface TaskTemplate {
   brandId: string;
   name: string;
   phase: string;
+  basePhaseCode: string; // どのフェーズの日付を基準にするか (例: "05")
   defaultDurationDays: number;
   deadlineDescription: string;
   details: string;
-  ownerMessage: string;
+  ownerMessage: string; // PM用メモ（オーナーには見せない）
   ownerResources: string;
   visibleToOwner: boolean;
   ownerSensitivity: OwnerSensitivity;
-  dependsOnPhase: string; // この前フェーズが完了しないと開始できない
+  dependsOnPhase: string;
   sortOrder: number;
 }
 
@@ -60,12 +82,14 @@ export interface Task {
   templateId: string | null;
   name: string;
   phase: string;
-  deadline: Date;
+  basePhaseCode: string; // 基準フェーズコード
+  idealDeadline: Date; // 理想期限（テンプレートから自動計算、変更不可）
+  deadline: Date; // 実際の期限（PMが手動変更可能）
   deadlineDescription: string;
   assigneeId: string;
   assigneeName: string;
   details: string;
-  ownerMessage: string;
+  ownerMessage: string; // PM用メモ（オーナーには見せない）
   ownerResources: string;
   status: TaskStatus;
   visibleToOwner: boolean;
@@ -94,6 +118,8 @@ export interface Store {
   brandName: string;
   ownerId: string;
   ownerName: string;
-  baseDate: Date;
+  // フェーズごとの基準日
+  phaseDates: Record<string, { date: string | null; type: string; label: string }>;
+  openingDate: string | null; // 出店予定日
   createdAt: Date;
 }
