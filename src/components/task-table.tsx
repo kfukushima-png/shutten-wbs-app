@@ -148,7 +148,7 @@ function TaskRowContent({
             {task.taskCode && (
               <span className="text-[10px] text-gray-400 font-mono bg-gray-100 px-1 rounded shrink-0">{task.taskCode}</span>
             )}
-            <span className="font-medium text-gray-800 truncate">{task.name}</span>
+            <span className="font-medium text-gray-800">{task.name}</span>
             {blocked && <span className="px-1 py-0.5 bg-orange-100 text-orange-600 text-[9px] rounded font-medium shrink-0">ブロック</span>}
             {task.calendarEventId && <span className="text-[10px] text-green-500 shrink-0" title="カレンダー登録済み">📅</span>}
             {commentCount > 0 && <span className="text-[10px] text-blue-500 shrink-0">💬{commentCount}</span>}
@@ -190,16 +190,12 @@ function TaskRowContent({
         <div className="pr-4 text-gray-600 w-20 shrink-0 text-xs truncate">{task.assigneeName}</div>
         {/* ステータス */}
         <div className="pr-4 w-24 shrink-0">
-          {canEdit ? (
-            <select value={task.status} onChange={(e) => onStatusChange(task.id, e.target.value as TaskStatus)}
-              className="border rounded px-1 py-0.5 text-xs bg-white w-full">
-              <option value="not_started">未着手</option>
-              <option value="in_progress">進行中</option>
-              <option value="done">完了</option>
-            </select>
-          ) : (
-            <StatusBadge status={task.status} />
-          )}
+          <select value={task.status} onChange={(e) => onStatusChange(task.id, e.target.value as TaskStatus)}
+            className="border rounded px-1 py-0.5 text-xs bg-white w-full">
+            <option value="not_started">未着手</option>
+            <option value="in_progress">進行中</option>
+            <option value="done">完了</option>
+          </select>
         </div>
         {/* オーナー表示 */}
         {canEdit && (
@@ -295,7 +291,8 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh, gantt
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [orderedTasks, setOrderedTasks] = useState<Task[]>(tasks);
   const canEdit = viewerRole === "admin" || viewerRole === "pm";
-  const [filter, setFilter] = useState<string>("all");
+  const [phaseFilter, setPhaseFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("undone");
 
   useEffect(() => {
     const sorted = [...tasks].sort((a, b) => {
@@ -308,8 +305,13 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh, gantt
   }, [tasks]);
 
   const phases = [...new Set(orderedTasks.map((t) => t.phase))];
-  const filtered = filter === "all" ? orderedTasks : orderedTasks.filter((t) => t.phase === filter);
-  const isDraggable = canEdit && filter === "all";
+  const filtered = orderedTasks.filter((t) => {
+    if (phaseFilter !== "all" && t.phase !== phaseFilter) return false;
+    if (statusFilter === "undone" && t.status === "done") return false;
+    if (statusFilter !== "all" && statusFilter !== "undone" && t.status !== statusFilter) return false;
+    return true;
+  });
+  const isDraggable = canEdit && phaseFilter === "all" && statusFilter === "all";
 
   const pointerSensor = useSensor(PointerSensor, {
     activationConstraint: { distance: 5 },
@@ -389,21 +391,33 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh, gantt
 
   return (
     <div>
-      <div className="flex gap-2 mb-4 flex-wrap">
-        <button onClick={() => setFilter("all")}
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-            filter === "all" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-          }`}>
-          全て
-        </button>
-        {phases.map((phase) => (
-          <button key={phase} onClick={() => setFilter(phase)}
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        {/* フェーズフィルター */}
+        <div className="flex gap-1.5 flex-wrap">
+          <button onClick={() => setPhaseFilter("all")}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filter === phase ? "bg-blue-600 text-white" : PHASE_BG_COLORS[phase] || "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              phaseFilter === "all" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}>
-            {phase}
+            全フェーズ
           </button>
-        ))}
+          {phases.map((phase) => (
+            <button key={phase} onClick={() => setPhaseFilter(phase)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                phaseFilter === phase ? "bg-blue-600 text-white" : PHASE_BG_COLORS[phase] || "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}>
+              {phase}
+            </button>
+          ))}
+        </div>
+        {/* ステータスフィルター */}
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+          className="border rounded-lg px-3 py-1.5 text-sm bg-white text-gray-700">
+          <option value="undone">完了以外</option>
+          <option value="all">全ステータス</option>
+          <option value="not_started">未着手のみ</option>
+          <option value="in_progress">進行中のみ</option>
+          <option value="done">完了のみ</option>
+        </select>
       </div>
 
       <div className="overflow-x-auto">
