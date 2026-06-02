@@ -16,6 +16,7 @@ interface UrgentTask {
   deadline: Date;
   daysLeft: number;
   status: string;
+  noDeadline?: boolean;
 }
 
 interface StoreProgress {
@@ -71,30 +72,34 @@ export default function DashboardPage() {
           overdue: tasks.filter((t) => t.status !== "done" && t.deadline < now).length,
         });
 
-        // 1週間以内の期限タスクを収集
+        // 1週間以内の期限タスク + 期限未設定タスクを収集
         for (const t of tasks) {
           if (t.status === "done") continue;
-          if (t.deadline <= oneWeekLater) {
+          // 期限未設定（1970年に近い or 無効な日付）
+          const deadlineYear = t.deadline.getFullYear();
+          if (deadlineYear < 2000 || isNaN(t.deadline.getTime())) {
             urgent.push({
-              storeId: store.id,
-              storeName: store.name,
-              taskCode: t.taskCode || "",
-              name: t.name,
-              deadline: t.deadline,
-              daysLeft: differenceInDays(t.deadline, now),
-              status: t.status,
+              storeId: store.id, storeName: store.name,
+              taskCode: t.taskCode || "", name: t.name,
+              deadline: t.deadline, daysLeft: 9999, status: t.status, noDeadline: true,
+            });
+          } else if (t.deadline <= oneWeekLater) {
+            urgent.push({
+              storeId: store.id, storeName: store.name,
+              taskCode: t.taskCode || "", name: t.name,
+              deadline: t.deadline, daysLeft: differenceInDays(t.deadline, now), status: t.status,
             });
           }
         }
       }
-      urgent.sort((a, b) => a.daysLeft - b.daysLeft);
+      urgent.sort((a, b) => {
+        if (a.noDeadline && !b.noDeadline) return 1;
+        if (!a.noDeadline && b.noDeadline) return -1;
+        return a.daysLeft - b.daysLeft;
+      });
       setUrgentTasks(urgent);
       setStoreProgress(progress);
       setLoadingData(false);
-
-      if (appUser.role === "owner" && myStores.length === 1) {
-        window.location.href = `/stores/${myStores[0].id}`;
-      }
     })();
   }, [appUser]);
 
@@ -102,7 +107,8 @@ export default function DashboardPage() {
     return <div className="text-gray-500">読み込み中...</div>;
   }
 
-  const showSummary = appUser.role === "admin" || appUser.role === "pm";
+  const showSummary = true; // 全ロールでサマリー表示
+  const canManage = appUser.role === "admin" || appUser.role === "pm";
 
   // フィルター適用
   const brands = [...new Set(storeProgress.map((sp) => sp.store.brandName).filter(Boolean))];
@@ -123,7 +129,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-gray-800">ダッシュボード</h1>
           <p className="text-sm text-gray-500 mt-0.5">{format(new Date(), "yyyy年MM月dd日（EEEE）", { locale: ja })}</p>
         </div>
-        {showSummary && (
+        {canManage && (
           <Link href="/stores" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
             店舗管理
           </Link>
@@ -131,7 +137,7 @@ export default function DashboardPage() {
       </div>
 
       {/* フィルター（admin/pmのみ） */}
-      {showSummary && (
+      {canManage && (
         <div className="flex gap-3 mb-6 flex-wrap">
           {/* PM担当者フィルター */}
           {pmUsers.length > 0 && (
@@ -191,7 +197,7 @@ export default function DashboardPage() {
             <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            1週間以内の期限タスク ({urgentTasks.length}件)
+            注意が必要なタスク ({urgentTasks.filter((t) => !t.noDeadline).length}件){urgentTasks.some((t) => t.noDeadline) ? ` ＋ 期限未設定 ${urgentTasks.filter((t) => t.noDeadline).length}件` : ""}
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -208,12 +214,14 @@ export default function DashboardPage() {
                   <tr key={i} className="border-b border-gray-50">
                     <td className="py-2 pr-4">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                        t.noDeadline ? "bg-gray-200 text-gray-600" :
                         t.daysLeft < 0 ? "bg-red-100 text-red-700" :
                         t.daysLeft === 0 ? "bg-orange-100 text-orange-700" :
                         t.daysLeft <= 3 ? "bg-yellow-100 text-yellow-700" :
                         "bg-blue-50 text-blue-600"
                       }`}>
-                        {t.daysLeft < 0 ? `${Math.abs(t.daysLeft)}日超過` :
+                        {t.noDeadline ? "期限未設定" :
+                         t.daysLeft < 0 ? `${Math.abs(t.daysLeft)}日超過` :
                          t.daysLeft === 0 ? "今日" :
                          `あと${t.daysLeft}日`}
                       </span>
@@ -227,7 +235,7 @@ export default function DashboardPage() {
                       {t.taskCode && <span className="text-[10px] text-gray-400 font-mono mr-1">{t.taskCode}</span>}
                       <span className="font-medium text-gray-800">{t.name}</span>
                     </td>
-                    <td className="py-2 pr-4 text-gray-500 text-xs">{format(t.deadline, "MM/dd")}</td>
+                    <td className="py-2 pr-4 text-gray-500 text-xs">{t.noDeadline ? "—" : format(t.deadline, "MM/dd")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -255,13 +263,13 @@ export default function DashboardPage() {
                     </span>
                   )}
                 </div>
-                {overdue > 0 && showSummary && (
+                {overdue > 0 && (
                   <span className="px-2 py-0.5 bg-red-100 text-red-600 text-xs rounded-full font-medium">
                     {overdue}件遅延
                   </span>
                 )}
               </div>
-              {showSummary && <p className="text-sm text-gray-500 mb-3">オーナー: {store.ownerName}</p>}
+              {canManage && <p className="text-sm text-gray-500 mb-3">オーナー: {store.ownerName}</p>}
               <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
                 <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
               </div>

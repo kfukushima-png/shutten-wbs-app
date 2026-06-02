@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRequireRole } from "@/lib/auth-context";
-import { getAllUsers, updateUser, deleteUser, getStores } from "@/lib/firestore";
+import { getAllUsers, updateUser, deleteUser, getStores, preRegisterUser } from "@/lib/firestore";
 import DeleteConfirmModal from "@/components/delete-confirm-modal";
 import type { AppUser, UserRole, Store } from "@/types";
+
+type AddUserRole = "pm" | "owner";
 
 export default function UsersPage() {
   const { hasAccess, loading, appUser: currentUser } = useRequireRole(["admin", "pm"]);
@@ -12,6 +14,8 @@ export default function UsersPage() {
   const [stores, setStores] = useState<Store[]>([]);
   const [assignModal, setAssignModal] = useState<AppUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [addForm, setAddForm] = useState({ email: "", role: "owner" as AddUserRole, storeIds: [] as string[] });
 
   const loadData = async () => {
     const [u, s] = await Promise.all([getAllUsers(), getStores()]);
@@ -64,12 +68,69 @@ export default function UsersPage() {
     loadData();
   };
 
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addForm.email.trim()) return;
+    await preRegisterUser(addForm.email.trim(), addForm.role, addForm.storeIds);
+    setShowAddUser(false);
+    setAddForm({ email: "", role: "owner", storeIds: [] });
+    alert(`${addForm.email} を事前登録しました。このメールアドレスでGoogleログインすると自動承認されます。`);
+  };
+
   if (loading) return <div className="text-gray-500">読み込み中...</div>;
   if (!hasAccess) return <div className="text-red-500">アクセス権限がありません</div>;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">ユーザー管理</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">ユーザー管理</h1>
+        <button onClick={() => setShowAddUser(true)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+          ユーザー追加
+        </button>
+      </div>
+
+      {/* 事前登録フォーム */}
+      {showAddUser && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+          <h3 className="font-bold text-gray-800 mb-1">ユーザー事前登録</h3>
+          <p className="text-xs text-gray-500 mb-3">登録したメールアドレスでGoogleログインすると、自動で承認されます</p>
+          <form onSubmit={handleAddUser} className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">メールアドレス *</label>
+              <input required type="email" value={addForm.email}
+                onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                className="border rounded-lg px-3 py-2 text-sm w-64" placeholder="example@gmail.com" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ロール</label>
+              <select value={addForm.role}
+                onChange={(e) => setAddForm({ ...addForm, role: e.target.value as AddUserRole })}
+                className="border rounded-lg px-3 py-2 text-sm">
+                <option value="owner">オーナー</option>
+                <option value="pm">本部PM</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">担当店舗</label>
+              <select multiple value={addForm.storeIds}
+                onChange={(e) => setAddForm({ ...addForm, storeIds: Array.from(e.target.selectedOptions, (o) => o.value) })}
+                className="border rounded-lg px-3 py-2 text-sm h-20 w-48">
+                {stores.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-gray-400 mt-0.5">Ctrl/Cmd+クリックで複数選択</p>
+            </div>
+            <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
+              登録
+            </button>
+            <button type="button" onClick={() => setShowAddUser(false)} className="px-4 py-2 border rounded-lg text-sm text-gray-600">
+              キャンセル
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* 承認待ち */}
       {pendingUsers.length > 0 && (
