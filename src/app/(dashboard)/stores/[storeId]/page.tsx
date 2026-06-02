@@ -10,6 +10,7 @@ import CsvUpload from "@/components/csv-upload";
 import GanttChart from "@/components/gantt-chart";
 import CalendarButton from "@/components/calendar-button";
 import ReportButton from "@/components/report-button";
+import StoreEditModal from "@/components/store-edit-modal";
 import type { Store, Task } from "@/types";
 
 export default function StoreDetailPage() {
@@ -21,6 +22,7 @@ export default function StoreDetailPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [view, setView] = useState<"table" | "gantt">("table");
   const [noAccess, setNoAccess] = useState(false);
+  const [showEditStore, setShowEditStore] = useState(false);
 
   const canEdit = appUser?.role === "admin" || appUser?.role === "pm";
   const isOwner = appUser?.role === "owner";
@@ -49,7 +51,18 @@ export default function StoreDetailPage() {
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">{store.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-800">{store.name}</h1>
+            {canEdit && (
+              <button onClick={() => setShowEditStore(true)}
+                className="text-gray-400 hover:text-blue-600 transition-colors" title="店舗情報を編集">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-2 mt-1">
             {store.brandName && (
               <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full">
@@ -94,6 +107,10 @@ export default function StoreDetailPage() {
 
       {showAddModal && canEdit && (
         <AddTaskModal storeId={storeId} onClose={() => setShowAddModal(false)} onCreated={loadData} />
+      )}
+
+      {showEditStore && canEdit && store && (
+        <StoreEditModal store={store} onClose={() => setShowEditStore(false)} onUpdated={loadData} />
       )}
     </div>
   );
