@@ -25,13 +25,8 @@ export default function StoreDetailPage() {
   const [view, setView] = useState<"table" | "gantt">("table");
   const [noAccess, setNoAccess] = useState(false);
   const [showEditStore, setShowEditStore] = useState(false);
-  const [ganttSelectedIds, setGanttSelectedIds] = useState<Set<string>>(() => {
-    if (typeof window === "undefined") return new Set<string>();
-    try {
-      const saved = localStorage.getItem(`gantt-selected-${storeId}`);
-      return saved ? new Set(JSON.parse(saved)) : new Set<string>();
-    } catch { return new Set<string>(); }
-  });
+  const [ganttSelectedIds, setGanttSelectedIds] = useState<Set<string>>(new Set());
+  const [ganttInitialized, setGanttInitialized] = useState(false);
 
   const canEdit = appUser?.role === "admin" || appUser?.role === "pm";
   const isOwner = appUser?.role === "owner";
@@ -62,11 +57,19 @@ export default function StoreDetailPage() {
     loadData();
   }, [loading, appUser, storeId]);
 
+  // ガントモードに切り替えた時、初回は完了以外を自動選択
+  useEffect(() => {
+    if (view === "gantt" && !ganttInitialized && tasks.length > 0) {
+      const undoneTasks = tasks.filter((t) => t.status !== "done");
+      setGanttSelectedIds(new Set(undoneTasks.map((t) => t.id)));
+      setGanttInitialized(true);
+    }
+  }, [view, tasks, ganttInitialized]);
+
   const toggleGanttSelect = (taskId: string) => {
     setGanttSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(taskId)) { next.delete(taskId); } else { next.add(taskId); }
-      localStorage.setItem(`gantt-selected-${storeId}`, JSON.stringify([...next]));
       return next;
     });
   };
@@ -74,12 +77,13 @@ export default function StoreDetailPage() {
   const handleSelectAll = () => {
     if (ganttSelectedIds.size === tasks.length) {
       setGanttSelectedIds(new Set());
-      localStorage.setItem(`gantt-selected-${storeId}`, "[]");
     } else {
-      const allIds = new Set(tasks.map((t) => t.id));
-      setGanttSelectedIds(allIds);
-      localStorage.setItem(`gantt-selected-${storeId}`, JSON.stringify([...allIds]));
+      setGanttSelectedIds(new Set(tasks.map((t) => t.id)));
     }
+  };
+
+  const handleSelectUndone = () => {
+    setGanttSelectedIds(new Set(tasks.filter((t) => t.status !== "done").map((t) => t.id)));
   };
 
   const ganttTasks = ganttSelectedIds.size > 0
@@ -148,9 +152,12 @@ export default function StoreDetailPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-gray-700">表示するタスクを選択 ({ganttSelectedIds.size}/{tasks.length}件)</h3>
-              <button onClick={handleSelectAll} className="text-xs text-blue-600 hover:underline">
-                {ganttSelectedIds.size === tasks.length ? "全解除" : "全選択"}
-              </button>
+              <div className="flex gap-2">
+                <button onClick={handleSelectUndone} className="text-xs text-blue-600 hover:underline">完了以外</button>
+                <button onClick={handleSelectAll} className="text-xs text-blue-600 hover:underline">
+                  {ganttSelectedIds.size === tasks.length ? "全解除" : "全選択"}
+                </button>
+              </div>
             </div>
             <TaskTable tasks={tasks} viewerRole={appUser.role} storeId={storeId} onRefresh={loadData}
               showCheckboxes selectedTaskIds={ganttSelectedIds} onToggleSelect={toggleGanttSelect} />
