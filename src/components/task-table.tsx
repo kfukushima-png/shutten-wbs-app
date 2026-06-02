@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import StatusBadge from "./status-badge";
 import VisibilityToggle from "./visibility-toggle";
 import TaskComments from "./task-comments";
+import EditTaskModal from "./edit-task-modal";
 import { updateTaskStatus, updateTask, deleteTask, getCommentCountsByStore } from "@/lib/firestore";
 import type { Task, TaskStatus, UserRole } from "@/types";
 import { sensitivityLabels, sensitivityColors, PHASE_COLORS, PHASE_BG_COLORS } from "@/types";
@@ -24,6 +25,7 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh, selec
   const [editField, setEditField] = useState<"startDate" | "deadline">("deadline");
   const [editDate, setEditDate] = useState("");
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const canEdit = viewerRole === "admin" || viewerRole === "pm";
   const [filter, setFilter] = useState<string>("all");
@@ -256,10 +258,16 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh, selec
                               </div>
                             )}
                             {canEdit && (
-                              <div className="flex items-center gap-3 text-xs text-gray-400">
-                                <span>機密: <span className={`px-1.5 py-0.5 rounded-full font-medium ${sensitivityColors[task.ownerSensitivity || "safe"]}`}>{sensitivityLabels[task.ownerSensitivity || "safe"]}</span></span>
-                                {task.basePhaseCode && <span>基準: {task.basePhaseCode}</span>}
-                                <span>理想: {format(task.idealStartDate, "MM/dd")}〜{format(task.idealEndDate, "MM/dd")}</span>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3 text-xs text-gray-400">
+                                  <span>機密: <span className={`px-1.5 py-0.5 rounded-full font-medium ${sensitivityColors[task.ownerSensitivity || "safe"]}`}>{sensitivityLabels[task.ownerSensitivity || "safe"]}</span></span>
+                                  {task.basePhaseCode && <span>基準: {task.basePhaseCode}</span>}
+                                  <span>理想: {format(task.idealStartDate, "MM/dd")}〜{format(task.idealEndDate, "MM/dd")}</span>
+                                </div>
+                                <button onClick={() => setEditingTask(task)}
+                                  className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100">
+                                  編集
+                                </button>
                               </div>
                             )}
                           </div>
@@ -283,6 +291,10 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh, selec
           <p className="text-center text-gray-400 py-8">タスクがありません</p>
         )}
       </div>
+
+      {editingTask && (
+        <EditTaskModal task={editingTask} onClose={() => setEditingTask(null)} onUpdated={onRefresh} />
+      )}
     </div>
   );
 }
