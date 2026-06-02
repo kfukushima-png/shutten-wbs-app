@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
           if (tplSnap.exists) {
             const tpl = tplSnap.data()!;
             const newDeadline = new Date(phaseChangedAt);
-            newDeadline.setDate(newDeadline.getDate() + tpl.defaultDurationDays);
+            newDeadline.setDate(newDeadline.getDate() + (tpl.endDaysFromBase || 0));
             batch.update(taskDoc.ref, {
               deadline: Timestamp.fromDate(newDeadline),
               updatedAt: Timestamp.now(),

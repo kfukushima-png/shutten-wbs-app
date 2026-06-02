@@ -59,14 +59,17 @@ export default function CsvUpload({ storeId, onUploaded }: Props) {
   };
 
   const parseRow = (row: Record<string, string>): Omit<Task, "id" | "createdAt" | "updatedAt"> => {
-    const dl = new Date(row["期限"] || row["deadline"] || new Date());
+    const sd = new Date(row["開始日"] || row["startDate"] || row["期限"] || row["deadline"] || new Date());
+    const dl = new Date(row["完了期限"] || row["期限"] || row["deadline"] || new Date());
     return {
       storeId,
       templateId: null,
       name: row["タスク名"] || row["name"] || "",
       phase: row["フェーズ"] || row["phase"] || "",
       basePhaseCode: row["基準フェーズコード"] || row["basePhaseCode"] || "",
-      idealDeadline: dl,
+      idealStartDate: sd,
+      idealEndDate: dl,
+      startDate: sd,
       deadline: dl,
       deadlineDescription: row["期限設定"] || row["deadlineDescription"] || "",
       assigneeId: "",

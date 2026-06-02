@@ -46,11 +46,13 @@ export default function BrandsPage() {
   };
 
   const handleExportCsv = (brand: Brand, templates: TaskTemplate[]) => {
-    const headers = ["タスク名", "フェーズ", "基準日からの日数", "期限設定", "詳細", "オーナー共有文章", "共有資料URL", "公開区分", "表示順"];
+    const headers = ["タスク名", "フェーズ", "基準フェーズコード", "開始日数", "完了日数", "期限設定", "詳細", "オーナー共有文章", "共有資料URL", "公開区分", "表示順"];
     const rows = templates.map((t) => [
       t.name,
       t.phase,
-      String(t.defaultDurationDays),
+      t.basePhaseCode || "01",
+      String(t.startDaysFromBase || 0),
+      String(t.endDaysFromBase || 0),
       t.deadlineDescription,
       t.details,
       t.ownerMessage,
@@ -149,7 +151,7 @@ export default function BrandsPage() {
                           <td className="px-5 py-2 text-gray-400">{tpl.sortOrder}</td>
                           <td className="px-5 py-2 font-medium text-gray-800">{tpl.name}</td>
                           <td className="px-5 py-2 text-gray-600">{tpl.phase}</td>
-                          <td className="px-5 py-2 text-gray-600">{tpl.defaultDurationDays}日</td>
+                          <td className="px-5 py-2 text-gray-600 text-xs">{tpl.startDaysFromBase || 0}〜{tpl.endDaysFromBase || 0}日</td>
                           <td className="px-5 py-2">
                             <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${sensitivityColors[tpl.ownerSensitivity || "safe"]}`}>
                               {sensitivityLabels[tpl.ownerSensitivity || "safe"]}

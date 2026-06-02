@@ -190,10 +190,13 @@ async function recalculateIdealDeadlines(storeId: string, phaseCode: string, bas
       const tplSnap = await getDoc(doc(db(), "taskTemplates", task.templateId));
       if (tplSnap.exists()) {
         const tpl = tplSnap.data();
-        const idealDeadline = new Date(baseDate);
-        idealDeadline.setDate(idealDeadline.getDate() + (tpl.defaultDurationDays || 0));
+        const idealStartDate = new Date(baseDate);
+        idealStartDate.setDate(idealStartDate.getDate() + (tpl.startDaysFromBase || 0));
+        const idealEndDate = new Date(baseDate);
+        idealEndDate.setDate(idealEndDate.getDate() + (tpl.endDaysFromBase || 0));
         await updateDoc(taskDoc.ref, {
-          idealDeadline: Timestamp.fromDate(idealDeadline),
+          idealStartDate: Timestamp.fromDate(idealStartDate),
+          idealEndDate: Timestamp.fromDate(idealEndDate),
           updatedAt: Timestamp.now(),
         });
       }
@@ -245,7 +248,9 @@ export async function getTasksByStore(storeId: string): Promise<Task[]> {
     return {
       id: d.id,
       ...data,
-      idealDeadline: toDate(data.idealDeadline || data.deadline),
+      idealStartDate: toDate(data.idealStartDate || data.startDate || data.deadline),
+      idealEndDate: toDate(data.idealEndDate || data.idealDeadline || data.deadline),
+      startDate: toDate(data.startDate || data.deadline),
       deadline: toDate(data.deadline),
       createdAt: toDate(data.createdAt),
       updatedAt: toDate(data.updatedAt),
@@ -257,7 +262,9 @@ export async function createTask(data: Omit<Task, "id" | "createdAt" | "updatedA
   const now = Timestamp.now();
   const ref = await addDoc(collection(db(), "tasks"), {
     ...data,
-    idealDeadline: Timestamp.fromDate(data.idealDeadline || data.deadline),
+    idealStartDate: Timestamp.fromDate(data.idealStartDate || data.startDate || data.deadline),
+    idealEndDate: Timestamp.fromDate(data.idealEndDate || data.deadline),
+    startDate: Timestamp.fromDate(data.startDate || data.deadline),
     deadline: Timestamp.fromDate(data.deadline),
     createdAt: now,
     updatedAt: now,
@@ -268,7 +275,9 @@ export async function createTask(data: Omit<Task, "id" | "createdAt" | "updatedA
 export async function updateTask(id: string, data: Partial<Task>) {
   const update: Record<string, unknown> = { ...data, updatedAt: Timestamp.now() };
   if (data.deadline) update.deadline = Timestamp.fromDate(data.deadline);
-  if (data.idealDeadline) update.idealDeadline = Timestamp.fromDate(data.idealDeadline);
+  if (data.startDate) update.startDate = Timestamp.fromDate(data.startDate);
+  if (data.idealStartDate) update.idealStartDate = Timestamp.fromDate(data.idealStartDate);
+  if (data.idealEndDate) update.idealEndDate = Timestamp.fromDate(data.idealEndDate);
   await updateDoc(doc(db(), "tasks", id), update);
 }
 
@@ -294,8 +303,10 @@ export async function generateTasksFromTemplates(
     const baseDateStr = phaseDates[basePhaseCode]?.date;
     const baseDate = baseDateStr ? new Date(baseDateStr) : new Date();
 
-    const idealDeadline = new Date(baseDate);
-    idealDeadline.setDate(idealDeadline.getDate() + tpl.defaultDurationDays);
+    const idealStartDate = new Date(baseDate);
+    idealStartDate.setDate(idealStartDate.getDate() + (tpl.startDaysFromBase || 0));
+    const idealEndDate = new Date(baseDate);
+    idealEndDate.setDate(idealEndDate.getDate() + (tpl.endDaysFromBase || 0));
 
     await createTask({
       storeId,
@@ -303,8 +314,10 @@ export async function generateTasksFromTemplates(
       name: tpl.name,
       phase: tpl.phase,
       basePhaseCode,
-      idealDeadline,
-      deadline: new Date(idealDeadline),
+      idealStartDate,
+      idealEndDate,
+      startDate: new Date(idealStartDate),
+      deadline: new Date(idealEndDate),
       deadlineDescription: tpl.deadlineDescription,
       assigneeId,
       assigneeName,

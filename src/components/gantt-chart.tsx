@@ -24,7 +24,6 @@ export default function GanttChart({ tasks }: Props) {
       const { default: Gantt } = await import("frappe-gantt");
       containerRef.current!.innerHTML = "";
 
-      // 実際のタスク + 理想タスク（薄い色）を重ねて表示
       const ganttTasks: {
         id: string;
         name: string;
@@ -36,18 +35,20 @@ export default function GanttChart({ tasks }: Props) {
       }[] = [];
 
       tasks.forEach((task) => {
-        const idealStart = new Date(task.idealDeadline || task.deadline);
-        idealStart.setDate(idealStart.getDate() - 7);
-        const actualStart = new Date(task.deadline);
-        actualStart.setDate(actualStart.getDate() - 7);
+        const idealStart = format(task.idealStartDate || task.startDate, "yyyy-MM-dd");
+        const idealEnd = format(task.idealEndDate || task.deadline, "yyyy-MM-dd");
+        const actualStart = format(task.startDate, "yyyy-MM-dd");
+        const actualEnd = format(task.deadline, "yyyy-MM-dd");
 
-        // 理想バー（idealDeadlineが設定されていて、実際と異なる場合のみ）
-        if (task.idealDeadline && format(task.idealDeadline, "yyyy-MM-dd") !== format(task.deadline, "yyyy-MM-dd")) {
+        // 理想と実際が異なる場合、理想バーを薄く表示
+        const hasDeviation = idealStart !== actualStart || idealEnd !== actualEnd;
+
+        if (hasDeviation) {
           ganttTasks.push({
             id: `ideal-${task.id}`,
             name: `[理想] ${task.name}`,
-            start: format(idealStart, "yyyy-MM-dd"),
-            end: format(task.idealDeadline, "yyyy-MM-dd"),
+            start: idealStart,
+            end: idealEnd,
             progress: 0,
             custom_class: "gantt-ideal",
           });
@@ -57,12 +58,10 @@ export default function GanttChart({ tasks }: Props) {
         ganttTasks.push({
           id: task.id,
           name: task.name,
-          start: format(actualStart, "yyyy-MM-dd"),
-          end: format(task.deadline, "yyyy-MM-dd"),
+          start: actualStart,
+          end: actualEnd,
           progress: task.status === "done" ? 100 : task.status === "in_progress" ? 50 : 0,
           custom_class: `gantt-${task.status}`,
-          dependencies: task.idealDeadline && format(task.idealDeadline, "yyyy-MM-dd") !== format(task.deadline, "yyyy-MM-dd")
-            ? `ideal-${task.id}` : undefined,
         });
       });
 
@@ -93,7 +92,7 @@ export default function GanttChart({ tasks }: Props) {
           <span className="w-3 h-3 rounded" style={{ backgroundColor: statusColors.done }} /> 完了
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded border-2 border-dashed border-gray-400 bg-gray-100" /> 理想期限
+          <span className="w-3 h-3 rounded border-2 border-dashed border-gray-400 bg-gray-100" /> 理想期間
         </span>
       </div>
       <div ref={containerRef} className="overflow-x-auto" />
@@ -101,7 +100,7 @@ export default function GanttChart({ tasks }: Props) {
         .gantt-not_started .bar { fill: ${statusColors.not_started} !important; }
         .gantt-in_progress .bar { fill: ${statusColors.in_progress} !important; }
         .gantt-done .bar { fill: ${statusColors.done} !important; }
-        .gantt-ideal .bar { fill: #E5E7EB !important; stroke: #9CA3AF; stroke-width: 1; stroke-dasharray: 4,2; opacity: 0.7; }
+        .gantt-ideal .bar { fill: #E5E7EB !important; stroke: #9CA3AF; stroke-width: 1; stroke-dasharray: 4,2; opacity: 0.6; }
         .gantt-ideal .bar-label { fill: #6B7280 !important; font-size: 10px; font-style: italic; }
         .gantt .bar-label { fill: white !important; font-size: 12px; }
         .gantt .grid-header { fill: #F9FAFB; }

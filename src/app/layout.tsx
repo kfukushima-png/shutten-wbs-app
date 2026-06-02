@@ -5,6 +5,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "WBS管理システム",
   description: "出店WBS管理アプリ",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

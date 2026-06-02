@@ -28,10 +28,9 @@ export const sensitivityColors: Record<OwnerSensitivity, string> = {
   secret: "bg-red-100 text-red-700",
 };
 
-// フェーズ定義
 export interface PhaseDate {
   date: Date | null;
-  type: "auto" | "manual"; // auto=フェーズ変更時に自動記録, manual=手入力
+  type: "auto" | "manual";
   label: string;
 }
 
@@ -64,11 +63,12 @@ export interface TaskTemplate {
   brandId: string;
   name: string;
   phase: string;
-  basePhaseCode: string; // どのフェーズの日付を基準にするか (例: "05")
-  defaultDurationDays: number;
+  basePhaseCode: string;
+  startDaysFromBase: number; // 基準日から○日後に開始（マイナス=基準日の○日前）
+  endDaysFromBase: number;   // 基準日から○日後に完了（マイナス=基準日の○日前）
   deadlineDescription: string;
   details: string;
-  ownerMessage: string; // PM用メモ（オーナーには見せない）
+  ownerMessage: string;
   ownerResources: string;
   visibleToOwner: boolean;
   ownerSensitivity: OwnerSensitivity;
@@ -82,14 +82,16 @@ export interface Task {
   templateId: string | null;
   name: string;
   phase: string;
-  basePhaseCode: string; // 基準フェーズコード
-  idealDeadline: Date; // 理想期限（テンプレートから自動計算、変更不可）
-  deadline: Date; // 実際の期限（PMが手動変更可能）
+  basePhaseCode: string;
+  idealStartDate: Date;    // 理想開始日
+  idealEndDate: Date;      // 理想完了日
+  startDate: Date;         // 実際の開始日（PMが変更可能）
+  deadline: Date;          // 実際の完了期限（PMが変更可能）
   deadlineDescription: string;
   assigneeId: string;
   assigneeName: string;
   details: string;
-  ownerMessage: string; // PM用メモ（オーナーには見せない）
+  ownerMessage: string;
   ownerResources: string;
   status: TaskStatus;
   visibleToOwner: boolean;
@@ -118,8 +120,7 @@ export interface Store {
   brandName: string;
   ownerId: string;
   ownerName: string;
-  // フェーズごとの基準日
   phaseDates: Record<string, { date: string | null; type: string; label: string }>;
-  openingDate: string | null; // 出店予定日
+  openingDate: string | null;
   createdAt: Date;
 }

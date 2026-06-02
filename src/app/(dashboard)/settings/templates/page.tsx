@@ -21,7 +21,8 @@ export default function TemplatesPage() {
   const [form, setForm] = useState({
     name: "",
     phase: "",
-    defaultDurationDays: 30,
+    startDaysFromBase: 0,
+    endDaysFromBase: 30,
     deadlineDescription: "",
     details: "",
     ownerMessage: "",
@@ -58,7 +59,7 @@ export default function TemplatesPage() {
     e.preventDefault();
     await createTaskTemplate({ ...form, brandId: selectedBrandId });
     setShowAdd(false);
-    setForm({ name: "", phase: "", defaultDurationDays: 30, deadlineDescription: "", details: "", ownerMessage: "", ownerResources: "", visibleToOwner: true, ownerSensitivity: "safe", dependsOnPhase: "", basePhaseCode: "01", sortOrder: templates.length });
+    setForm({ name: "", phase: "", startDaysFromBase: 0, endDaysFromBase: 30, deadlineDescription: "", details: "", ownerMessage: "", ownerResources: "", visibleToOwner: true, ownerSensitivity: "safe", dependsOnPhase: "", basePhaseCode: "01", sortOrder: templates.length });
     loadTemplates();
   };
 
@@ -91,7 +92,8 @@ export default function TemplatesPage() {
             name,
             phase: row["フェーズ"] || row["phase"] || "",
             basePhaseCode: row["基準フェーズコード"] || row["basePhaseCode"] || "01",
-            defaultDurationDays: parseInt(row["基準日からの日数"] || row["days"] || "30") || 30,
+            startDaysFromBase: parseInt(row["開始日数"] || row["startDays"] || "0") || 0,
+            endDaysFromBase: parseInt(row["完了日数"] || row["endDays"] || row["基準日からの日数"] || "30") || 30,
             deadlineDescription: row["期限設定"] || row["deadlineDescription"] || "",
             details: row["詳細"] || row["details"] || "",
             ownerMessage: row["オーナー共有文章"] || row["ownerMessage"] || "",
@@ -116,7 +118,7 @@ export default function TemplatesPage() {
   const handleCopyTable = () => {
     const headers = ["タスク名", "フェーズ", "基準日からの日数", "期限設定", "詳細", "オーナー共有文章", "共有資料URL", "公開区分", "前提フェーズ", "表示順"];
     const rows = templates.map((t) => [
-      t.name, t.phase, String(t.defaultDurationDays), t.deadlineDescription,
+      t.name, t.phase, t.basePhaseCode || "01", String(t.startDaysFromBase || 0), String(t.endDaysFromBase || 0), t.deadlineDescription,
       t.details, t.ownerMessage, t.ownerResources, sensitivityLabels[t.ownerSensitivity || "safe"],
       t.dependsOnPhase || "", String(t.sortOrder),
     ]);
@@ -128,7 +130,7 @@ export default function TemplatesPage() {
   const handleExportCsv = () => {
     const headers = ["タスク名", "フェーズ", "基準日からの日数", "期限設定", "詳細", "オーナー共有文章", "共有資料URL", "公開区分", "前提フェーズ", "表示順"];
     const rows = templates.map((t) => [
-      t.name, t.phase, String(t.defaultDurationDays), t.deadlineDescription,
+      t.name, t.phase, t.basePhaseCode || "01", String(t.startDaysFromBase || 0), String(t.endDaysFromBase || 0), t.deadlineDescription,
       t.details, t.ownerMessage, t.ownerResources, t.ownerSensitivity,
       t.dependsOnPhase || "", String(t.sortOrder),
     ]);
@@ -182,10 +184,13 @@ export default function TemplatesPage() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-6 text-xs text-blue-700">
         <p className="font-medium mb-1">CSV取込フォーマット（1行目がヘッダー）:</p>
         <code className="text-[11px] bg-blue-100 px-2 py-1 rounded block overflow-x-auto">
-          タスク名,フェーズ,基準フェーズコード,基準日からの日数,期限設定,詳細,オーナー共有文章,共有資料URL,公開区分,前提フェーズ,表示順
+          タスク名,フェーズ,基準フェーズコード,開始日数,完了日数,期限設定,詳細,オーナー共有文章,共有資料URL,公開区分,前提フェーズ,表示順
         </code>
         <p className="mt-1 text-blue-600">
-          必須: タスク名, フェーズ, 基準フェーズコード ／ 基準フェーズコード: 01〜09 ／ 公開区分: safe / caution / secret
+          必須: タスク名, フェーズ, 基準フェーズコード ／ 公開区分: safe / caution / secret
+        </p>
+        <p className="mt-0.5 text-blue-500 text-[10px]">
+          開始日数/完了日数: 基準日+○日（マイナス値で基準日の○日前。例: -14=14日前, 0=当日, 30=30日後）
         </p>
         <p className="mt-0.5 text-blue-500 text-[10px]">
           基準フェーズコード: 01=加盟契約日, 02=物件内見開始, 03=審査開始, 04=現場調査開始, 05=契約予定日, 07=完工予定日, 09=出店予定日
@@ -228,12 +233,20 @@ export default function TemplatesPage() {
                   className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="例: 契約前準備" />
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">基準日からの日数</label>
-                <input type="number" value={form.defaultDurationDays}
-                  onChange={(e) => setForm({ ...form, defaultDurationDays: parseInt(e.target.value) })}
+                <label className="block text-sm font-medium text-gray-700 mb-1">開始日数</label>
+                <input type="number" value={form.startDaysFromBase}
+                  onChange={(e) => setForm({ ...form, startDaysFromBase: parseInt(e.target.value) || 0 })}
                   className="w-full border rounded-lg px-3 py-2 text-sm" />
+                <p className="text-[10px] text-gray-400 mt-0.5">基準日+○日（マイナス=前）</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">完了日数</label>
+                <input type="number" value={form.endDaysFromBase}
+                  onChange={(e) => setForm({ ...form, endDaysFromBase: parseInt(e.target.value) || 0 })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm" />
+                <p className="text-[10px] text-gray-400 mt-0.5">基準日+○日（マイナス=前）</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">期限設定の説明</label>
@@ -301,7 +314,7 @@ export default function TemplatesPage() {
                 <th className="text-left px-5 py-3 font-medium text-gray-500">順</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-500">タスク名</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-500">フェーズ</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">日数</th>
+                <th className="text-left px-5 py-3 font-medium text-gray-500">期間</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-500">期限設定</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-500">公開区分</th>
                 <th className="text-left px-5 py-3 font-medium text-gray-500">操作</th>
@@ -315,7 +328,9 @@ export default function TemplatesPage() {
                     <td className="px-5 py-3 text-gray-500">{tpl.sortOrder}</td>
                     <td className="px-5 py-3 font-medium text-gray-800">{tpl.name}</td>
                     <td className="px-5 py-3 text-gray-600">{tpl.phase}</td>
-                    <td className="px-5 py-3 text-gray-600">{tpl.defaultDurationDays}日</td>
+                    <td className="px-5 py-3 text-gray-600 text-xs">
+                      {(tpl.startDaysFromBase || 0) >= 0 ? "+" : ""}{tpl.startDaysFromBase || 0}日 〜 {(tpl.endDaysFromBase || 0) >= 0 ? "+" : ""}{tpl.endDaysFromBase || 0}日
+                    </td>
                     <td className="px-5 py-3 text-gray-600 text-xs">{tpl.deadlineDescription}</td>
                     <td className="px-5 py-3">
                       <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${sensitivityColors[sensitivity]}`}>

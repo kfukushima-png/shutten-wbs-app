@@ -14,6 +14,7 @@ export default function AddTaskModal({ storeId, onClose, onCreated }: Props) {
   const [form, setForm] = useState({
     name: "",
     phase: "",
+    startDate: "",
     deadline: "",
     deadlineDescription: "",
     assigneeName: "",
@@ -24,8 +25,15 @@ export default function AddTaskModal({ storeId, onClose, onCreated }: Props) {
     ownerSensitivity: "safe" as OwnerSensitivity,
   });
 
+  const dateReversed = form.startDate && form.deadline && new Date(form.startDate) > new Date(form.deadline);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (dateReversed) {
+      alert("開始日が完了期限より後になっています。日付を確認してください。");
+      return;
+    }
+    const sd = new Date(form.startDate || form.deadline);
     const dl = new Date(form.deadline);
     await createTask({
       storeId,
@@ -33,7 +41,9 @@ export default function AddTaskModal({ storeId, onClose, onCreated }: Props) {
       name: form.name,
       phase: form.phase,
       basePhaseCode: "",
-      idealDeadline: dl,
+      idealStartDate: sd,
+      idealEndDate: dl,
+      startDate: sd,
       deadline: dl,
       deadlineDescription: form.deadlineDescription,
       assigneeId: "",
@@ -68,11 +78,21 @@ export default function AddTaskModal({ storeId, onClose, onCreated }: Props) {
                 className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">期限 *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">開始日 *</label>
+              <input type="date" required value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">完了期限 *</label>
               <input type="date" required value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })}
                 className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
+          {dateReversed && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-red-700 text-xs font-medium">
+              開始日が完了期限より後になっています。日付を確認してください。
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">期限設定の説明</label>
             <input value={form.deadlineDescription} onChange={(e) => setForm({ ...form, deadlineDescription: e.target.value })}
