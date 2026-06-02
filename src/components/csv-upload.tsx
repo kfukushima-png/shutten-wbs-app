@@ -62,6 +62,7 @@ export default function CsvUpload({ storeId, onUploaded }: Props) {
     const sd = new Date(row["開始日"] || row["startDate"] || row["期限"] || row["deadline"] || new Date());
     const dl = new Date(row["完了期限"] || row["期限"] || row["deadline"] || new Date());
     return {
+      taskCode: row["タスクID"] || row["taskCode"] || "",
       storeId,
       templateId: null,
       name: row["タスク名"] || row["name"] || "",
@@ -80,7 +81,7 @@ export default function CsvUpload({ storeId, onUploaded }: Props) {
       status: "not_started",
       visibleToOwner: (row["オーナー表示"] || row["visibleToOwner"] || "true") === "true",
       ownerSensitivity: (row["公開区分"] || row["ownerSensitivity"] || "safe") as OwnerSensitivity,
-      dependsOnPhase: row["前提フェーズ"] || row["dependsOnPhase"] || "",
+      dependsOn: row["前提タスク"] || row["dependsOn"] || "",
       isManual: true,
     };
   };

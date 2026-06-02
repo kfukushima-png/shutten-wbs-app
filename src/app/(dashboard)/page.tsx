@@ -2,9 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { getStores, getTasksByStore } from "@/lib/firestore";
-import type { Store } from "@/types";
+import { getStores, getTasksByStore, getAllUsers } from "@/lib/firestore";
+import type { Store, AppUser, Task } from "@/types";
+import { format, differenceInDays } from "date-fns";
+import { ja } from "date-fns/locale";
 import Link from "next/link";
+
+interface UrgentTask {
+  storeId: string;
+  storeName: string;
+  taskCode: string;
+  name: string;
+  deadline: Date;
+  daysLeft: number;
+  status: string;
+}
 
 interface StoreProgress {
   store: Store;
@@ -17,6 +29,10 @@ export default function DashboardPage() {
   const { appUser } = useAuth();
   const [storeProgress, setStoreProgress] = useState<StoreProgress[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [pmUsers, setPmUsers] = useState<AppUser[]>([]);
+  const [selectedPm, setSelectedPm] = useState<string>("all");
+  const [selectedBrand, setSelectedBrand] = useState<string>("all");
+  const [urgentTasks, setUrgentTasks] = useState<UrgentTask[]>([]);
 
   useEffect(() => {
     if (!appUser) return;
@@ -25,7 +41,12 @@ export default function DashboardPage() {
       const allStores = await getStores();
       const now = new Date();
 
-      // ロールに応じてフィルタ
+      // PM一覧を取得（admin/pm用フィルター）
+      if (appUser.role === "admin" || appUser.role === "pm") {
+        const users = await getAllUsers();
+        setPmUsers(users.filter((u) => u.role === "pm" || u.role === "admin"));
+      }
+
       let myStores: Store[];
       if (appUser.role === "admin") {
         myStores = allStores;
@@ -36,9 +57,12 @@ export default function DashboardPage() {
       }
 
       const progress: StoreProgress[] = [];
+      const urgent: UrgentTask[] = [];
+      const oneWeekLater = new Date(now);
+      oneWeekLater.setDate(oneWeekLater.getDate() + 7);
+
       for (const store of myStores) {
         const allTasks = await getTasksByStore(store.id);
-        // オーナーは公開タスクのみカウント
         const tasks = appUser.role === "owner" ? allTasks.filter((t) => t.visibleToOwner) : allTasks;
         progress.push({
           store,
@@ -46,11 +70,28 @@ export default function DashboardPage() {
           done: tasks.filter((t) => t.status === "done").length,
           overdue: tasks.filter((t) => t.status !== "done" && t.deadline < now).length,
         });
+
+        // 1週間以内の期限タスクを収集
+        for (const t of tasks) {
+          if (t.status === "done") continue;
+          if (t.deadline <= oneWeekLater) {
+            urgent.push({
+              storeId: store.id,
+              storeName: store.name,
+              taskCode: t.taskCode || "",
+              name: t.name,
+              deadline: t.deadline,
+              daysLeft: differenceInDays(t.deadline, now),
+              status: t.status,
+            });
+          }
+        }
       }
+      urgent.sort((a, b) => a.daysLeft - b.daysLeft);
+      setUrgentTasks(urgent);
       setStoreProgress(progress);
       setLoadingData(false);
 
-      // オーナーで1店舗だけなら自動遷移
       if (appUser.role === "owner" && myStores.length === 1) {
         window.location.href = `/stores/${myStores[0].id}`;
       }
@@ -61,15 +102,27 @@ export default function DashboardPage() {
     return <div className="text-gray-500">読み込み中...</div>;
   }
 
-  const roleLabel = { admin: "管理者", pm: "本部PM", owner: "オーナー" }[appUser.role];
-
-  // サマリーカード（admin/pmのみ）
   const showSummary = appUser.role === "admin" || appUser.role === "pm";
+
+  // フィルター適用
+  const brands = [...new Set(storeProgress.map((sp) => sp.store.brandName).filter(Boolean))];
+  const filteredProgress = storeProgress.filter((sp) => {
+    if (selectedBrand !== "all" && sp.store.brandName !== selectedBrand) return false;
+    // PM担当者フィルター: PMのstoreIdsに含まれる店舗のみ
+    if (selectedPm !== "all") {
+      const pm = pmUsers.find((u) => u.uid === selectedPm);
+      if (pm && pm.storeIds?.length > 0 && !pm.storeIds.includes(sp.store.id)) return false;
+    }
+    return true;
+  });
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-gray-800">ダッシュボード</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">ダッシュボード</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{format(new Date(), "yyyy年MM月dd日（EEEE）", { locale: ja })}</p>
+        </div>
         {showSummary && (
           <Link href="/stores" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
             店舗管理
@@ -77,31 +130,118 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* フィルター（admin/pmのみ） */}
+      {showSummary && (
+        <div className="flex gap-3 mb-6 flex-wrap">
+          {/* PM担当者フィルター */}
+          {pmUsers.length > 0 && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">PM担当者</label>
+              <select value={selectedPm} onChange={(e) => setSelectedPm(e.target.value)}
+                className="border rounded-lg px-3 py-2 text-sm bg-white">
+                <option value="all">全員</option>
+                {pmUsers.map((pm) => (
+                  <option key={pm.uid} value={pm.uid}>{pm.displayName}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {/* ブランドフィルター */}
+          {brands.length > 1 && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">ブランド</label>
+              <select value={selectedBrand} onChange={(e) => setSelectedBrand(e.target.value)}
+                className="border rounded-lg px-3 py-2 text-sm bg-white">
+                <option value="all">全ブランド</option>
+                {brands.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* サマリーカード */}
       {showSummary && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <div className="bg-white rounded-xl border border-gray-200 p-5 text-center">
-            <p className="text-3xl font-bold text-gray-800">{storeProgress.length}</p>
+            <p className="text-3xl font-bold text-gray-800">{filteredProgress.length}</p>
             <p className="text-sm text-gray-500 mt-1">店舗数</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-5 text-center">
             <p className="text-3xl font-bold text-blue-600">
-              {storeProgress.reduce((a, b) => a + b.done, 0)} / {storeProgress.reduce((a, b) => a + b.total, 0)}
+              {filteredProgress.reduce((a, b) => a + b.done, 0)} / {filteredProgress.reduce((a, b) => a + b.total, 0)}
             </p>
             <p className="text-sm text-gray-500 mt-1">完了タスク</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-5 text-center">
             <p className="text-3xl font-bold text-red-600">
-              {storeProgress.reduce((a, b) => a + b.overdue, 0)}
+              {filteredProgress.reduce((a, b) => a + b.overdue, 0)}
             </p>
             <p className="text-sm text-gray-500 mt-1">期限超過</p>
           </div>
         </div>
       )}
 
+      {/* 1週間以内の期限タスク */}
+      {urgentTasks.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-8">
+          <h2 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+            <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            1週間以内の期限タスク ({urgentTasks.length}件)
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-left">
+                  <th className="pb-2 pr-4 font-medium text-gray-500 text-xs">残り</th>
+                  <th className="pb-2 pr-4 font-medium text-gray-500 text-xs">店舗</th>
+                  <th className="pb-2 pr-4 font-medium text-gray-500 text-xs">タスク</th>
+                  <th className="pb-2 pr-4 font-medium text-gray-500 text-xs">期限</th>
+                </tr>
+              </thead>
+              <tbody>
+                {urgentTasks.slice(0, 15).map((t, i) => (
+                  <tr key={i} className="border-b border-gray-50">
+                    <td className="py-2 pr-4">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                        t.daysLeft < 0 ? "bg-red-100 text-red-700" :
+                        t.daysLeft === 0 ? "bg-orange-100 text-orange-700" :
+                        t.daysLeft <= 3 ? "bg-yellow-100 text-yellow-700" :
+                        "bg-blue-50 text-blue-600"
+                      }`}>
+                        {t.daysLeft < 0 ? `${Math.abs(t.daysLeft)}日超過` :
+                         t.daysLeft === 0 ? "今日" :
+                         `あと${t.daysLeft}日`}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-4 text-gray-600">
+                      <Link href={`/stores/${t.storeId}`} className="hover:text-blue-600 hover:underline">
+                        {t.storeName}
+                      </Link>
+                    </td>
+                    <td className="py-2 pr-4">
+                      {t.taskCode && <span className="text-[10px] text-gray-400 font-mono mr-1">{t.taskCode}</span>}
+                      <span className="font-medium text-gray-800">{t.name}</span>
+                    </td>
+                    <td className="py-2 pr-4 text-gray-500 text-xs">{format(t.deadline, "MM/dd")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {urgentTasks.length > 15 && (
+              <p className="text-xs text-gray-400 mt-2">他{urgentTasks.length - 15}件...</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 店舗カード一覧 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {storeProgress.map(({ store, total, done, overdue }) => {
+        {filteredProgress.map(({ store, total, done, overdue }) => {
           const pct = total > 0 ? Math.round((done / total) * 100) : 0;
           return (
             <Link key={store.id} href={`/stores/${store.id}`}
@@ -131,7 +271,7 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {storeProgress.length === 0 && (
+      {filteredProgress.length === 0 && (
         <div className="text-center py-16">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -26,7 +26,7 @@ export default function Sidebar() {
 
   if (!appUser) return null;
 
-  const roleLabel = { admin: "管理者", pm: "本部PM", owner: "オーナー" }[appUser.role];
+  const roleLabel = { admin: "admin", pm: "本部PM", owner: "オーナー" }[appUser.role];
   const roleColor = { admin: "bg-purple-100 text-purple-700", pm: "bg-blue-100 text-blue-700", owner: "bg-green-100 text-green-700" }[appUser.role];
   const filteredNav = navItems.filter((item) => item.roles.includes(appUser.role));
 

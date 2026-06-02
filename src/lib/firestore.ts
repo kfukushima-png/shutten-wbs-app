@@ -309,6 +309,7 @@ export async function generateTasksFromTemplates(
     idealEndDate.setDate(idealEndDate.getDate() + (tpl.endDaysFromBase || 0));
 
     await createTask({
+      taskCode: tpl.taskCode || "",
       storeId,
       templateId: tpl.id,
       name: tpl.name,
@@ -327,7 +328,7 @@ export async function generateTasksFromTemplates(
       status: "not_started",
       visibleToOwner: tpl.ownerSensitivity === "safe" ? tpl.visibleToOwner : false,
       ownerSensitivity: tpl.ownerSensitivity || "safe",
-      dependsOnPhase: tpl.dependsOnPhase || "",
+      dependsOn: tpl.dependsOn || "",
       isManual: false,
     });
   }
@@ -347,9 +348,12 @@ export async function checkDuplicateTasks(
   const newTasks: Omit<Task, "id" | "createdAt" | "updatedAt">[] = [];
   const duplicates: DuplicateCheckResult["duplicates"] = [];
   for (const incoming of incomingTasks) {
-    const match = existingTasks.find(
-      (existing) => existing.name.trim() === incoming.name.trim() && existing.phase.trim() === incoming.phase.trim(),
-    );
+    // taskCodeがあればtaskCodeで一致、なければタスク名+フェーズで一致
+    const match = incoming.taskCode
+      ? existingTasks.find((existing) => existing.taskCode === incoming.taskCode)
+      : existingTasks.find(
+          (existing) => existing.name.trim() === incoming.name.trim() && existing.phase.trim() === incoming.phase.trim(),
+        );
     if (match) { duplicates.push({ incoming, existing: match }); } else { newTasks.push(incoming); }
   }
   return { newTasks, duplicates };

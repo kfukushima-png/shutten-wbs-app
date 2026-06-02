@@ -60,33 +60,35 @@ export interface Brand {
 
 export interface TaskTemplate {
   id: string;
+  taskCode: string; // ユーザー指定のタスクID（例: BE-B-01）
   brandId: string;
   name: string;
   phase: string;
   basePhaseCode: string;
-  startDaysFromBase: number; // 基準日から○日後に開始（マイナス=基準日の○日前）
-  endDaysFromBase: number;   // 基準日から○日後に完了（マイナス=基準日の○日前）
+  startDaysFromBase: number;
+  endDaysFromBase: number;
   deadlineDescription: string;
   details: string;
   ownerMessage: string;
   ownerResources: string;
   visibleToOwner: boolean;
   ownerSensitivity: OwnerSensitivity;
-  dependsOnPhase: string;
+  dependsOn: string; // 前提タスクのtaskCode（複数はスラッシュ区切り: "BE-B-01 / BE-S-01"）
   sortOrder: number;
 }
 
 export interface Task {
   id: string;
+  taskCode: string; // ユーザー指定のタスクID（例: BE-B-01）
   storeId: string;
   templateId: string | null;
   name: string;
   phase: string;
   basePhaseCode: string;
-  idealStartDate: Date;    // 理想開始日
-  idealEndDate: Date;      // 理想完了日
-  startDate: Date;         // 実際の開始日（PMが変更可能）
-  deadline: Date;          // 実際の完了期限（PMが変更可能）
+  idealStartDate: Date;
+  idealEndDate: Date;
+  startDate: Date;
+  deadline: Date;
   deadlineDescription: string;
   assigneeId: string;
   assigneeName: string;
@@ -96,7 +98,7 @@ export interface Task {
   status: TaskStatus;
   visibleToOwner: boolean;
   ownerSensitivity: OwnerSensitivity;
-  dependsOnPhase: string;
+  dependsOn: string; // 前提タスクのtaskCode（複数はスラッシュ区切り）
   isManual: boolean;
   createdAt: Date;
   updatedAt: Date;

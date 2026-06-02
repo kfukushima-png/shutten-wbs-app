@@ -12,10 +12,12 @@ interface Props {
 
 export default function AddTaskModal({ storeId, onClose, onCreated }: Props) {
   const [form, setForm] = useState({
+    taskCode: "",
     name: "",
     phase: "",
     startDate: "",
     deadline: "",
+    dependsOn: "",
     deadlineDescription: "",
     assigneeName: "",
     details: "",
@@ -36,6 +38,7 @@ export default function AddTaskModal({ storeId, onClose, onCreated }: Props) {
     const sd = new Date(form.startDate || form.deadline);
     const dl = new Date(form.deadline);
     await createTask({
+      taskCode: form.taskCode,
       storeId,
       templateId: null,
       name: form.name,
@@ -54,7 +57,7 @@ export default function AddTaskModal({ storeId, onClose, onCreated }: Props) {
       status: "not_started",
       visibleToOwner: form.ownerSensitivity === "safe" ? form.visibleToOwner : false,
       ownerSensitivity: form.ownerSensitivity,
-      dependsOnPhase: "",
+      dependsOn: form.dependsOn,
       isManual: true,
     });
     onCreated();

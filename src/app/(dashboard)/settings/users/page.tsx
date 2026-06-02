@@ -152,7 +152,7 @@ export default function UsersPage() {
                     {currentUser?.role === "admin" && !isMe ? (
                       <select value={u.role} onChange={(e) => handleRoleChange(u.uid, e.target.value as UserRole)}
                         className="border rounded px-2 py-1 text-sm bg-white">
-                        <option value="admin">管理者</option>
+                        <option value="admin">admin</option>
                         <option value="pm">本部PM</option>
                         <option value="owner">オーナー</option>
                       </select>
@@ -162,7 +162,7 @@ export default function UsersPage() {
                         u.role === "pm" ? "bg-blue-100 text-blue-700" :
                         "bg-green-100 text-green-700"
                       }`}>
-                        {{ admin: "管理者", pm: "本部PM", owner: "オーナー" }[u.role]}
+                        {{ admin: "admin", pm: "本部PM", owner: "オーナー" }[u.role]}
                       </span>
                     )}
                   </td>

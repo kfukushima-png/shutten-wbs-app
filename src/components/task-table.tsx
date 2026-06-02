@@ -34,12 +34,28 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh }: Pro
     }
   }, [storeId, tasks]);
 
-  // タスク依存チェック: 前フェーズが未完了ならブロック中
+  // タスク依存チェック: 前提タスクが未完了ならブロック中
   const isBlocked = (task: Task): boolean => {
-    if (!task.dependsOnPhase) return false;
-    const depPhaseTasks = tasks.filter((t) => t.phase === task.dependsOnPhase);
-    if (depPhaseTasks.length === 0) return false;
-    return depPhaseTasks.some((t) => t.status !== "done");
+    if (!task.dependsOn) return false;
+    const depCodes = task.dependsOn.split("/").map((s) => s.trim()).filter(Boolean);
+    if (depCodes.length === 0) return false;
+    return depCodes.some((code) => {
+      const depTask = tasks.find((t) => t.taskCode === code);
+      return depTask && depTask.status !== "done";
+    });
+  };
+
+  const getBlockedByNames = (task: Task): string[] => {
+    if (!task.dependsOn) return [];
+    return task.dependsOn.split("/").map((s) => s.trim()).filter(Boolean)
+      .filter((code) => {
+        const depTask = tasks.find((t) => t.taskCode === code);
+        return depTask && depTask.status !== "done";
+      })
+      .map((code) => {
+        const depTask = tasks.find((t) => t.taskCode === code);
+        return depTask ? `${depTask.taskCode} ${depTask.name}` : code;
+      });
   };
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
@@ -115,8 +131,13 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh }: Pro
                     <div className={`border-b border-gray-100 ${overdue ? "bg-red-50" : ""} ${blocked ? "bg-orange-50/50" : ""}`}>
                       <div className="flex items-center py-3">
                         {/* タスク名 */}
-                        <div className="pr-4 flex-1 min-w-[180px]">
+                        <div className="pr-4 flex-1 min-w-[200px]">
                           <div className="flex items-center gap-1.5">
+                            {task.taskCode && (
+                              <span className="text-[10px] text-gray-400 font-mono bg-gray-100 px-1 rounded shrink-0">
+                                {task.taskCode}
+                              </span>
+                            )}
                             <span className="font-medium text-gray-800">{task.name}</span>
                             {blocked && (
                               <span className="px-1.5 py-0.5 bg-orange-100 text-orange-600 text-[10px] rounded font-medium">
@@ -125,30 +146,16 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh }: Pro
                             )}
                           </div>
                           {task.details && <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">{task.details}</div>}
-                          {/* 依存関係: PM以上は編集可能、オーナーは表示のみ */}
-                          {canEdit ? (
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <span className="text-[10px] text-gray-400">前提:</span>
-                              <select
-                                value={task.dependsOnPhase || ""}
-                                onChange={async (e) => {
-                                  await updateTask(task.id, { dependsOnPhase: e.target.value });
-                                  onRefresh();
-                                }}
-                                className="text-[10px] border rounded px-1 py-0.5 bg-white text-gray-600 max-w-[120px]"
-                              >
-                                <option value="">なし</option>
-                                {phases.filter((p) => p !== task.phase).map((p) => (
-                                  <option key={p} value={p}>{p}</option>
-                                ))}
-                              </select>
+                          {/* 依存関係表示 */}
+                          {task.dependsOn && (
+                            <div className="text-[10px] mt-0.5">
+                              <span className="text-gray-400">前提: </span>
+                              {blocked ? (
+                                <span className="text-orange-500">{getBlockedByNames(task).join(", ")} の完了待ち</span>
+                              ) : (
+                                <span className="text-green-500">{task.dependsOn}（完了済み）</span>
+                              )}
                             </div>
-                          ) : (
-                            blocked && task.dependsOnPhase && (
-                              <div className="text-[10px] text-orange-500 mt-0.5">
-                                前提: 「{task.dependsOnPhase}」フェーズの完了待ち
-                              </div>
-                            )
                           )}
                         </div>
                         {/* フェーズ */}
