@@ -106,6 +106,19 @@ export async function createStore(data: Omit<Store, "id" | "createdAt">) {
   return ref.id;
 }
 
+export async function deleteStore(id: string) {
+  // 店舗に紐づくタスクとコメントも削除
+  const tasksSnap = await getDocs(query(collection(db(), "tasks"), where("storeId", "==", id)));
+  for (const taskDoc of tasksSnap.docs) {
+    await deleteDoc(taskDoc.ref);
+  }
+  const commentsSnap = await getDocs(query(collection(db(), "comments"), where("storeId", "==", id)));
+  for (const commentDoc of commentsSnap.docs) {
+    await deleteDoc(commentDoc.ref);
+  }
+  await deleteDoc(doc(db(), "stores", id));
+}
+
 // --- Task Templates ---
 export async function getTaskTemplates(): Promise<TaskTemplate[]> {
   const snap = await getDocs(query(collection(db(), "taskTemplates"), orderBy("sortOrder")));

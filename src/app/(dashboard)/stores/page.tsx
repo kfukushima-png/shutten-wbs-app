@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRequireRole } from "@/lib/auth-context";
-import { getStores, getBrands, createStore, generateTasksFromTemplates, getTaskTemplatesByBrand } from "@/lib/firestore";
+import { getStores, getBrands, createStore, deleteStore, generateTasksFromTemplates, getTaskTemplatesByBrand } from "@/lib/firestore";
+import DeleteConfirmModal from "@/components/delete-confirm-modal";
 import type { Store, Brand } from "@/types";
 import Link from "next/link";
 
@@ -14,6 +15,7 @@ export default function StoresPage() {
   const [form, setForm] = useState({ name: "", ownerName: "", baseDate: "", brandId: "" });
   const [creating, setCreating] = useState(false);
   const [templateCount, setTemplateCount] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Store | null>(null);
 
   const loadStores = async () => setStores(await getStores());
 
@@ -38,17 +40,20 @@ export default function StoresPage() {
     setCreating(true);
     const brand = brands.find((b) => b.id === form.brandId);
     const storeId = await createStore({
-      name: form.name,
-      brandId: form.brandId,
-      brandName: brand?.name || "",
-      ownerId: "",
-      ownerName: form.ownerName,
-      baseDate: new Date(form.baseDate),
+      name: form.name, brandId: form.brandId, brandName: brand?.name || "",
+      ownerId: "", ownerName: form.ownerName, baseDate: new Date(form.baseDate),
     });
     await generateTasksFromTemplates(storeId, form.brandId, new Date(form.baseDate), appUser.uid, appUser.displayName);
     setShowAdd(false);
     setForm({ name: "", ownerName: "", baseDate: "", brandId: "" });
     setCreating(false);
+    loadStores();
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    await deleteStore(deleteTarget.id);
+    setDeleteTarget(null);
     loadStores();
   };
 
@@ -123,19 +128,42 @@ export default function StoresPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {stores.map((store) => (
-          <Link key={store.id} href={`/stores/${store.id}`}
-            className="block bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-bold text-gray-800">{store.name}</h3>
-              {store.brandName && (
-                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs rounded-full font-medium">{store.brandName}</span>
-              )}
-            </div>
-            <p className="text-sm text-gray-500 mt-1">オーナー: {store.ownerName}</p>
-            <p className="text-xs text-gray-400 mt-2">基準日: {store.baseDate.toLocaleDateString("ja-JP")}</p>
-          </Link>
+          <div key={store.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow relative group">
+            <Link href={`/stores/${store.id}`} className="block">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-bold text-gray-800">{store.name}</h3>
+                {store.brandName && (
+                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs rounded-full font-medium">{store.brandName}</span>
+                )}
+              </div>
+              <p className="text-sm text-gray-500 mt-1">オーナー: {store.ownerName}</p>
+              <p className="text-xs text-gray-400 mt-2">基準日: {store.baseDate.toLocaleDateString("ja-JP")}</p>
+            </Link>
+            <button
+              onClick={(e) => { e.preventDefault(); setDeleteTarget(store); }}
+              className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all"
+              title="店舗を削除"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
         ))}
       </div>
+
+      {/* 店舗削除確認モーダル */}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          title="店舗を削除"
+          message={`「${deleteTarget.name}」を削除します。この店舗に紐づくすべてのタスク・コメントも削除されます。この操作は取り消せません。削除するには、店舗名を入力してください。`}
+          confirmLabel="店舗名を入力して確認"
+          confirmPlaceholder="店舗名を入力"
+          confirmValue={deleteTarget.name}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   );
 }

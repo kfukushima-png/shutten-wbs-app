@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRequireRole } from "@/lib/auth-context";
 import { getAllUsers, updateUser, deleteUser, getStores } from "@/lib/firestore";
+import DeleteConfirmModal from "@/components/delete-confirm-modal";
 import type { AppUser, UserRole, Store } from "@/types";
 
 export default function UsersPage() {
@@ -10,6 +11,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [assignModal, setAssignModal] = useState<AppUser | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
 
   const loadData = async () => {
     const [u, s] = await Promise.all([getAllUsers(), getStores()]);
@@ -41,15 +43,19 @@ export default function UsersPage() {
     loadData();
   };
 
-  const handleDelete = async (uid: string) => {
-    if (uid === currentUser?.uid) {
+  const handleDeleteClick = (user: AppUser) => {
+    if (user.uid === currentUser?.uid) {
       alert("自分自身は削除できません");
       return;
     }
-    if (confirm("このユーザーを削除しますか？")) {
-      await deleteUser(uid);
-      loadData();
-    }
+    setDeleteTarget(user);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    await deleteUser(deleteTarget.uid);
+    setDeleteTarget(null);
+    loadData();
   };
 
   const handleStoreAssign = async (uid: string, storeIds: string[]) => {
@@ -175,7 +181,7 @@ export default function UsersPage() {
                   </td>
                   <td className="px-5 py-3">
                     {!isMe && (
-                      <button onClick={() => handleDelete(u.uid)} className="text-red-400 hover:text-red-600 text-xs">
+                      <button onClick={() => handleDeleteClick(u)} className="text-red-400 hover:text-red-600 text-xs">
                         削除
                       </button>
                     )}
@@ -196,66 +202,54 @@ export default function UsersPage() {
           onClose={() => setAssignModal(null)}
         />
       )}
+
+      {/* ユーザー削除確認モーダル */}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          title="ユーザーを削除"
+          message={`「${deleteTarget.displayName}」を削除します。このユーザーの担当店舗やタスクへのアクセスが失われます。削除するには、メールアドレスを入力してください。`}
+          confirmLabel="メールアドレスを入力して確認"
+          confirmPlaceholder="メールアドレスを入力"
+          confirmValue={deleteTarget.email}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   );
 }
 
 function StoreAssignModal({
-  user,
-  stores,
-  onSave,
-  onClose,
+  user, stores, onSave, onClose,
 }: {
-  user: AppUser;
-  stores: Store[];
-  onSave: (uid: string, storeIds: string[]) => void;
-  onClose: () => void;
+  user: AppUser; stores: Store[];
+  onSave: (uid: string, storeIds: string[]) => void; onClose: () => void;
 }) {
   const [selected, setSelected] = useState<string[]>(user.storeIds || []);
-
   const toggle = (storeId: string) => {
-    setSelected((prev) =>
-      prev.includes(storeId) ? prev.filter((id) => id !== storeId) : [...prev, storeId]
-    );
+    setSelected((prev) => prev.includes(storeId) ? prev.filter((id) => id !== storeId) : [...prev, storeId]);
   };
-
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-lg font-bold mb-1">店舗割当</h3>
         <p className="text-sm text-gray-500 mb-4">{user.displayName} ({user.email})</p>
-
         <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
           {stores.map((store) => (
             <label key={store.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
               selected.includes(store.id) ? "border-blue-400 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
             }`}>
-              <input
-                type="checkbox"
-                checked={selected.includes(store.id)}
-                onChange={() => toggle(store.id)}
-                className="rounded"
-              />
+              <input type="checkbox" checked={selected.includes(store.id)} onChange={() => toggle(store.id)} className="rounded" />
               <div>
                 <p className="font-medium text-gray-800 text-sm">{store.name}</p>
-                <p className="text-xs text-gray-500">
-                  {store.brandName && <span className="mr-2">{store.brandName}</span>}
-                  オーナー: {store.ownerName}
-                </p>
+                <p className="text-xs text-gray-500">{store.brandName && <span className="mr-2">{store.brandName}</span>}オーナー: {store.ownerName}</p>
               </div>
             </label>
           ))}
         </div>
-
         <div className="flex gap-2">
-          <button onClick={() => onSave(user.uid, selected)}
-            className="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700">
-            保存
-          </button>
-          <button onClick={onClose}
-            className="px-4 py-2.5 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-            キャンセル
-          </button>
+          <button onClick={() => onSave(user.uid, selected)} className="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700">保存</button>
+          <button onClick={onClose} className="px-4 py-2.5 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">キャンセル</button>
         </div>
       </div>
     </div>
