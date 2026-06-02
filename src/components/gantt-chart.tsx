@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { format, differenceInDays, isValid, min, max } from "date-fns";
 import type { Task } from "@/types";
 
 interface Props {
   tasks: Task[];
+  openingDate?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -17,7 +18,7 @@ const STATUS_COLORS: Record<string, string> = {
 const BAR_HEIGHT = 28;
 const ROW_HEIGHT = 38;
 const HEADER_HEIGHT = 50;
-const LEFT_LABEL_WIDTH = 200;
+const LEFT_LABEL_WIDTH = 180;
 const MIN_BAR_WIDTH = 6;
 
 function safeDate(d: unknown): Date | null {
@@ -33,12 +34,29 @@ function safeDate(d: unknown): Date | null {
   return null;
 }
 
-export default function GanttChart({ tasks }: Props) {
+export default function GanttChart({ tasks, openingDate }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [viewMode, setViewMode] = useState<"day" | "week" | "month">("week");
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [viewMode, setViewMode] = useState<"auto" | "day" | "week" | "month">("auto");
 
-  const { chartData, totalWidth, totalHeight, dateLabels, dayWidth, minDate } = useMemo(() => {
-    if (tasks.length === 0) return { chartData: [], totalWidth: 0, totalHeight: 0, dateLabels: [], dayWidth: 0, minDate: new Date() };
+  // コンテナ幅を監視
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(containerRef.current);
+    setContainerWidth(containerRef.current.clientWidth);
+    return () => observer.disconnect();
+  }, []);
+
+  const openingDateParsed = safeDate(openingDate);
+
+  const { chartData, totalWidth, totalHeight, dateLabels, dayWidth, minDate, openingX } = useMemo(() => {
+    const empty = { chartData: [], totalWidth: 0, totalHeight: 0, dateLabels: [], dayWidth: 0, minDate: new Date(), openingX: -1 };
+    if (tasks.length === 0 || containerWidth === 0) return empty;
 
     // 全タスクの日付範囲を計算
     const allDates: Date[] = [];
@@ -48,7 +66,8 @@ export default function GanttChart({ tasks }: Props) {
       if (s) allDates.push(s);
       if (e) allDates.push(e);
     }
-    if (allDates.length === 0) return { chartData: [], totalWidth: 0, totalHeight: 0, dateLabels: [], dayWidth: 0, minDate: new Date() };
+    if (openingDateParsed) allDates.push(openingDateParsed);
+    if (allDates.length === 0) return empty;
 
     const rangeStart = min(allDates);
     const rangeEnd = max(allDates);
@@ -62,41 +81,37 @@ export default function GanttChart({ tasks }: Props) {
     chartEnd.setDate(chartEnd.getDate() + paddingDays);
     const chartDays = differenceInDays(chartEnd, chartStart) + 1;
 
-    const dw = viewMode === "day" ? 40 : viewMode === "week" ? 20 : 8;
-    const tw = LEFT_LABEL_WIDTH + chartDays * dw;
+    // 横軸自動調整: コンテナ幅に合わせてdayWidthを計算
+    const availableWidth = containerWidth - LEFT_LABEL_WIDTH;
+    let dw: number;
+    if (viewMode === "auto") {
+      dw = Math.max(Math.floor(availableWidth / chartDays), 3);
+    } else {
+      dw = viewMode === "day" ? 40 : viewMode === "week" ? 20 : 8;
+    }
+
+    const tw = Math.max(LEFT_LABEL_WIDTH + chartDays * dw, containerWidth);
     const th = HEADER_HEIGHT + tasks.length * ROW_HEIGHT + 10;
 
     // 日付ラベル生成
     const labels: { x: number; label: string; isMajor: boolean }[] = [];
     let lastMonth = -1;
-    let lastWeek = -1;
+    const labelInterval = dw >= 30 ? 5 : dw >= 15 ? 7 : dw >= 8 ? 14 : 30;
+
     for (let i = 0; i < chartDays; i++) {
       const d = new Date(chartStart);
       d.setDate(d.getDate() + i);
       const x = LEFT_LABEL_WIDTH + i * dw;
 
-      if (viewMode === "day") {
-        if (d.getMonth() !== lastMonth) {
-          labels.push({ x, label: format(d, "M月"), isMajor: true });
-          lastMonth = d.getMonth();
-        }
-        if (d.getDate() % 5 === 1 || d.getDate() === 1) {
+      if (d.getMonth() !== lastMonth) {
+        labels.push({ x, label: format(d, "M月"), isMajor: true });
+        lastMonth = d.getMonth();
+      }
+
+      if (dw >= 8) {
+        const dayOfMonth = d.getDate();
+        if (dayOfMonth === 1 || (dayOfMonth % labelInterval === 1 && dayOfMonth !== 1)) {
           labels.push({ x, label: format(d, "d"), isMajor: false });
-        }
-      } else if (viewMode === "week") {
-        if (d.getMonth() !== lastMonth) {
-          labels.push({ x, label: format(d, "M月"), isMajor: true });
-          lastMonth = d.getMonth();
-        }
-        const week = Math.floor(d.getDate() / 7);
-        if (week !== lastWeek && d.getDay() === 1) {
-          labels.push({ x, label: format(d, "d"), isMajor: false });
-          lastWeek = week;
-        }
-      } else {
-        if (d.getMonth() !== lastMonth && d.getDate() <= 7) {
-          labels.push({ x, label: format(d, "M月"), isMajor: true });
-          lastMonth = d.getMonth();
         }
       }
     }
@@ -122,8 +137,14 @@ export default function GanttChart({ tasks }: Props) {
       };
     });
 
-    return { chartData: data, totalWidth: tw, totalHeight: th, dateLabels: labels, dayWidth: dw, minDate: chartStart };
-  }, [tasks, viewMode]);
+    // 出店日のX座標
+    let opX = -1;
+    if (openingDateParsed) {
+      opX = LEFT_LABEL_WIDTH + differenceInDays(openingDateParsed, chartStart) * dw;
+    }
+
+    return { chartData: data, totalWidth: tw, totalHeight: th, dateLabels: labels, dayWidth: dw, minDate: chartStart, openingX: opX };
+  }, [tasks, viewMode, containerWidth, openingDateParsed]);
 
   if (tasks.length === 0) {
     return <p className="text-gray-400 text-center py-8">表示するタスクを選択してください</p>;
@@ -145,90 +166,115 @@ export default function GanttChart({ tasks }: Props) {
           <span className="flex items-center gap-1">
             <span className="w-3 h-3 rounded" style={{ backgroundColor: STATUS_COLORS.done }} /> 完了
           </span>
+          {openingDateParsed && (
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-0.5 bg-orange-500 inline-block" style={{ borderTop: "2px solid #F97316" }} /> 出店日
+            </span>
+          )}
         </div>
         <div className="flex gap-1">
-          {(["day", "week", "month"] as const).map((mode) => (
+          {(["auto", "day", "week", "month"] as const).map((mode) => (
             <button key={mode} onClick={() => setViewMode(mode)}
               className={`px-2 py-1 rounded text-xs font-medium ${
                 viewMode === mode ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}>
-              {mode === "day" ? "日" : mode === "week" ? "週" : "月"}
+              {mode === "auto" ? "自動" : mode === "day" ? "日" : mode === "week" ? "週" : "月"}
             </button>
           ))}
         </div>
       </div>
 
       <div ref={containerRef} className="overflow-x-auto border border-gray-200 rounded-lg bg-white">
-        <svg width={totalWidth} height={totalHeight} className="select-none">
-          {/* ヘッダー背景 */}
-          <rect x={0} y={0} width={totalWidth} height={HEADER_HEIGHT} fill="#F9FAFB" />
-          <line x1={0} y1={HEADER_HEIGHT} x2={totalWidth} y2={HEADER_HEIGHT} stroke="#E5E7EB" />
+        {containerWidth > 0 && (
+          <svg width={totalWidth} height={totalHeight} className="select-none">
+            {/* ヘッダー背景 */}
+            <rect x={0} y={0} width={totalWidth} height={HEADER_HEIGHT} fill="#F9FAFB" />
+            <line x1={0} y1={HEADER_HEIGHT} x2={totalWidth} y2={HEADER_HEIGHT} stroke="#E5E7EB" />
 
-          {/* 日付ラベル */}
-          {dateLabels.map((dl, i) => (
-            <text key={i} x={dl.x + 2} y={dl.isMajor ? 18 : 38}
-              fontSize={dl.isMajor ? 12 : 10} fill={dl.isMajor ? "#374151" : "#9CA3AF"}
-              fontWeight={dl.isMajor ? 600 : 400}>
-              {dl.label}
-            </text>
-          ))}
-
-          {/* 行背景 + グリッド */}
-          {chartData.map((d, i) => (
-            <g key={d.task.id}>
-              <rect x={0} y={d.rowY} width={totalWidth} height={ROW_HEIGHT}
-                fill={i % 2 === 0 ? "#FFFFFF" : "#FAFAFA"} />
-              <line x1={0} y1={d.rowY + ROW_HEIGHT} x2={totalWidth} y2={d.rowY + ROW_HEIGHT}
-                stroke="#F3F4F6" />
-            </g>
-          ))}
-
-          {/* 今日の線 */}
-          {todayX > LEFT_LABEL_WIDTH && todayX < totalWidth && (
-            <g>
-              <line x1={todayX} y1={HEADER_HEIGHT} x2={todayX} y2={totalHeight}
-                stroke="#EF4444" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.6} />
-              <text x={todayX + 3} y={HEADER_HEIGHT - 5} fontSize={9} fill="#EF4444" fontWeight={600}>今日</text>
-            </g>
-          )}
-
-          {/* ラベル背景 */}
-          <rect x={0} y={HEADER_HEIGHT} width={LEFT_LABEL_WIDTH} height={totalHeight - HEADER_HEIGHT} fill="white" />
-          <line x1={LEFT_LABEL_WIDTH} y1={0} x2={LEFT_LABEL_WIDTH} y2={totalHeight} stroke="#E5E7EB" />
-
-          {/* タスクバー */}
-          {chartData.map((d) => (
-            <g key={d.task.id}>
-              {/* ラベル */}
-              <text x={8} y={d.barY + BAR_HEIGHT / 2 + 4} fontSize={11} fill="#374151"
-                className="truncate" clipPath={`url(#labelClip)`}>
-                {d.label}
+            {/* 日付ラベル */}
+            {dateLabels.map((dl, i) => (
+              <text key={i} x={dl.x + 2} y={dl.isMajor ? 18 : 38}
+                fontSize={dl.isMajor ? 12 : 10} fill={dl.isMajor ? "#374151" : "#9CA3AF"}
+                fontWeight={dl.isMajor ? 600 : 400}>
+                {dl.label}
               </text>
-              {/* バー */}
-              <rect x={d.barX} y={d.barY} width={d.barWidth} height={BAR_HEIGHT}
-                rx={4} ry={4} fill={d.color} opacity={0.85} />
-              {/* 進捗バー（done以外） */}
-              {d.task.status === "in_progress" && (
-                <rect x={d.barX} y={d.barY} width={d.barWidth * 0.5} height={BAR_HEIGHT}
-                  rx={4} ry={4} fill={d.color} opacity={1} />
-              )}
-              {/* バー内ラベル（幅が十分な場合） */}
-              {d.barWidth > 60 && (
-                <text x={d.barX + 6} y={d.barY + BAR_HEIGHT / 2 + 4}
-                  fontSize={10} fill="white" fontWeight={500}>
-                  {format(safeDate(d.task.startDate) || new Date(), "M/d")}〜{format(safeDate(d.task.deadline) || new Date(), "M/d")}
-                </text>
-              )}
-            </g>
-          ))}
+            ))}
 
-          {/* ラベルクリップ */}
-          <defs>
-            <clipPath id="labelClip">
-              <rect x={0} y={0} width={LEFT_LABEL_WIDTH - 8} height={totalHeight} />
-            </clipPath>
-          </defs>
-        </svg>
+            {/* 行背景 + グリッド */}
+            {chartData.map((d, i) => (
+              <g key={d.task.id}>
+                <rect x={0} y={d.rowY} width={totalWidth} height={ROW_HEIGHT}
+                  fill={i % 2 === 0 ? "#FFFFFF" : "#FAFAFA"} />
+                <line x1={0} y1={d.rowY + ROW_HEIGHT} x2={totalWidth} y2={d.rowY + ROW_HEIGHT}
+                  stroke="#F3F4F6" />
+              </g>
+            ))}
+
+            {/* 出店日の線（目立つ太線） */}
+            {openingX > LEFT_LABEL_WIDTH && openingX < totalWidth && (
+              <g>
+                {/* 背景帯 */}
+                <rect x={openingX - 1} y={0} width={3} height={totalHeight}
+                  fill="#F97316" opacity={0.15} />
+                {/* メイン線 */}
+                <line x1={openingX} y1={0} x2={openingX} y2={totalHeight}
+                  stroke="#F97316" strokeWidth={2.5} />
+                {/* ラベル */}
+                <rect x={openingX - 32} y={2} width={64} height={18} rx={4} fill="#F97316" />
+                <text x={openingX} y={14} fontSize={10} fill="white" fontWeight={700}
+                  textAnchor="middle">
+                  出店 {format(openingDateParsed!, "M/d")}
+                </text>
+              </g>
+            )}
+
+            {/* 今日の線 */}
+            {todayX > LEFT_LABEL_WIDTH && todayX < totalWidth && (
+              <g>
+                <line x1={todayX} y1={HEADER_HEIGHT} x2={todayX} y2={totalHeight}
+                  stroke="#EF4444" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.6} />
+                <text x={todayX + 3} y={HEADER_HEIGHT - 5} fontSize={9} fill="#EF4444" fontWeight={600}>今日</text>
+              </g>
+            )}
+
+            {/* ラベル背景 */}
+            <rect x={0} y={HEADER_HEIGHT} width={LEFT_LABEL_WIDTH} height={totalHeight - HEADER_HEIGHT} fill="white" />
+            <line x1={LEFT_LABEL_WIDTH} y1={0} x2={LEFT_LABEL_WIDTH} y2={totalHeight} stroke="#E5E7EB" />
+
+            {/* タスクバー */}
+            {chartData.map((d) => (
+              <g key={d.task.id}>
+                {/* ラベル */}
+                <text x={8} y={d.barY + BAR_HEIGHT / 2 + 4} fontSize={11} fill="#374151"
+                  clipPath="url(#labelClip)">
+                  {d.label}
+                </text>
+                {/* バー */}
+                <rect x={d.barX} y={d.barY} width={d.barWidth} height={BAR_HEIGHT}
+                  rx={4} ry={4} fill={d.color} opacity={0.85} />
+                {/* 進捗バー */}
+                {d.task.status === "in_progress" && (
+                  <rect x={d.barX} y={d.barY} width={d.barWidth * 0.5} height={BAR_HEIGHT}
+                    rx={4} ry={4} fill={d.color} opacity={1} />
+                )}
+                {/* バー内日付 */}
+                {d.barWidth > 60 && (
+                  <text x={d.barX + 6} y={d.barY + BAR_HEIGHT / 2 + 4}
+                    fontSize={10} fill="white" fontWeight={500}>
+                    {format(safeDate(d.task.startDate) || new Date(), "M/d")}〜{format(safeDate(d.task.deadline) || new Date(), "M/d")}
+                  </text>
+                )}
+              </g>
+            ))}
+
+            {/* ラベルクリップ */}
+            <defs>
+              <clipPath id="labelClip">
+                <rect x={0} y={0} width={LEFT_LABEL_WIDTH - 8} height={totalHeight} />
+              </clipPath>
+            </defs>
+          </svg>
+        )}
       </div>
     </div>
   );

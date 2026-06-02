@@ -164,7 +164,7 @@ export default function StoreDetailPage() {
           </div>
           {ganttSelectedIds.size > 0 && (
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <GanttChart tasks={ganttTasks} />
+              <GanttChart tasks={ganttTasks} openingDate={store.openingDate} />
             </div>
           )}
         </div>
