@@ -51,6 +51,47 @@ export const PHASE_DEFINITIONS: {
   { code: "09", name: "出店完了", dateType: "manual", dateLabel: "出店予定日" },
 ];
 
+// フェーズ色（テーブルの左ボーダーやバッジに使用）
+export const PHASE_COLORS: Record<string, string> = {
+  "加盟契約日": "border-l-blue-400",
+  "物件内見開始": "border-l-cyan-400",
+  "物件内見": "border-l-cyan-400",
+  "審査開始": "border-l-purple-400",
+  "不動産審査": "border-l-purple-400",
+  "現場調査開始": "border-l-amber-400",
+  "現場調査": "border-l-amber-400",
+  "契約予定日": "border-l-green-500",
+  "不動産契約": "border-l-green-500",
+  "内装検討開始": "border-l-orange-400",
+  "内装検討": "border-l-orange-400",
+  "完工予定日": "border-l-red-400",
+  "施工実施": "border-l-red-400",
+  "備品設置開始": "border-l-pink-400",
+  "備品設置": "border-l-pink-400",
+  "出店予定日": "border-l-emerald-500",
+  "出店完了": "border-l-emerald-500",
+};
+
+export const PHASE_BG_COLORS: Record<string, string> = {
+  "加盟契約日": "bg-blue-50 text-blue-700",
+  "物件内見開始": "bg-cyan-50 text-cyan-700",
+  "物件内見": "bg-cyan-50 text-cyan-700",
+  "審査開始": "bg-purple-50 text-purple-700",
+  "不動産審査": "bg-purple-50 text-purple-700",
+  "現場調査開始": "bg-amber-50 text-amber-700",
+  "現場調査": "bg-amber-50 text-amber-700",
+  "契約予定日": "bg-green-50 text-green-700",
+  "不動産契約": "bg-green-50 text-green-700",
+  "内装検討開始": "bg-orange-50 text-orange-700",
+  "内装検討": "bg-orange-50 text-orange-700",
+  "完工予定日": "bg-red-50 text-red-700",
+  "施工実施": "bg-red-50 text-red-700",
+  "備品設置開始": "bg-pink-50 text-pink-700",
+  "備品設置": "bg-pink-50 text-pink-700",
+  "出店予定日": "bg-emerald-50 text-emerald-700",
+  "出店完了": "bg-emerald-50 text-emerald-700",
+};
+
 export interface Brand {
   id: string;
   name: string;

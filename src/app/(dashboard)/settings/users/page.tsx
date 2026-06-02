@@ -112,7 +112,7 @@ export default function UsersPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">担当店舗</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">担当店舗（任意）</label>
               <select multiple value={addForm.storeIds}
                 onChange={(e) => setAddForm({ ...addForm, storeIds: Array.from(e.target.selectedOptions, (o) => o.value) })}
                 className="border rounded-lg px-3 py-2 text-sm h-20 w-48">
@@ -120,7 +120,7 @@ export default function UsersPage() {
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
-              <p className="text-[10px] text-gray-400 mt-0.5">Ctrl/Cmd+クリックで複数選択</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">未選択でもOK（後から割当可能）</p>
             </div>
             <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
               登録

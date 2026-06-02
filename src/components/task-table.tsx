@@ -7,7 +7,7 @@ import VisibilityToggle from "./visibility-toggle";
 import TaskComments from "./task-comments";
 import { updateTaskStatus, updateTask, deleteTask, getCommentCountsByStore } from "@/lib/firestore";
 import type { Task, TaskStatus, UserRole } from "@/types";
-import { sensitivityLabels, sensitivityColors } from "@/types";
+import { sensitivityLabels, sensitivityColors, PHASE_COLORS, PHASE_BG_COLORS } from "@/types";
 
 interface Props {
   tasks: Task[];
@@ -92,7 +92,7 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh, selec
         {phases.map((phase) => (
           <button key={phase} onClick={() => setFilter(phase)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filter === phase ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              filter === phase ? "bg-blue-600 text-white" : PHASE_BG_COLORS[phase] || "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}>
             {phase}
           </button>
@@ -125,7 +125,7 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh, selec
                 <tr key={task.id} className={`border-b border-gray-100 ${overdue ? "bg-red-50" : ""} ${blocked ? "bg-orange-50/30" : ""}`}>
                   <td colSpan={canEdit ? 9 : 7} className="p-0">
                     {/* メイン行 */}
-                    <div className="flex items-center py-2.5 px-1">
+                    <div className={`flex items-center py-2.5 px-1 border-l-4 ${PHASE_COLORS[task.phase] || "border-l-gray-200"}`}>
                       {showCheckboxes && (
                         <div className="pr-2 w-8 shrink-0">
                           <input type="checkbox"

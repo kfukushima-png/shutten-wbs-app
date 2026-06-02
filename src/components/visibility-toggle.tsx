@@ -62,7 +62,7 @@ export default function VisibilityToggle({ task, onUpdated }: Props) {
         className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
           task.visibleToOwner
             ? "bg-green-100 text-green-700 hover:bg-green-200"
-            : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+            : "bg-red-100 text-red-600 hover:bg-red-200"
         }`}
       >
         {task.visibleToOwner ? "表示中" : "非表示"}
