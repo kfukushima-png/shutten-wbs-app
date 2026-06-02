@@ -23,6 +23,8 @@ export default function StoreDetailPage() {
   const [view, setView] = useState<"table" | "gantt">("table");
   const [noAccess, setNoAccess] = useState(false);
   const [showEditStore, setShowEditStore] = useState(false);
+  const [ganttSelectedIds, setGanttSelectedIds] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
 
   const canEdit = appUser?.role === "admin" || appUser?.role === "pm";
   const isOwner = appUser?.role === "owner";
@@ -41,6 +43,26 @@ export default function StoreDetailPage() {
     }
     loadData();
   }, [loading, appUser, storeId]);
+
+  const toggleGanttSelect = (taskId: string) => {
+    setGanttSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) { next.delete(taskId); } else { next.add(taskId); }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (ganttSelectedIds.size === tasks.length) {
+      setGanttSelectedIds(new Set());
+    } else {
+      setGanttSelectedIds(new Set(tasks.map((t) => t.id)));
+    }
+  };
+
+  const ganttTasks = selectMode && ganttSelectedIds.size > 0
+    ? tasks.filter((t) => ganttSelectedIds.has(t.id))
+    : tasks;
 
   if (loading) return <div className="text-gray-500">読み込み中...</div>;
   if (!appUser) return <div className="text-red-500">ログインが必要です</div>;
@@ -65,22 +87,24 @@ export default function StoreDetailPage() {
           </div>
           <div className="flex items-center gap-2 mt-1">
             {store.brandName && (
-              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full">
-                {store.brandName}
-              </span>
+              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full">{store.brandName}</span>
             )}
             {canEdit && <p className="text-sm text-gray-500">オーナー: {store.ownerName}</p>}
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex bg-gray-100 rounded-lg p-1">
-            <button onClick={() => setView("table")}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "table" ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
+            <button onClick={() => { setView("table"); setSelectMode(false); }}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "table" && !selectMode ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
               テーブル
             </button>
-            <button onClick={() => setView("gantt")}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "gantt" ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
-              ガントチャート
+            <button onClick={() => { setView("gantt"); setSelectMode(false); }}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "gantt" && !selectMode ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
+              ガント（全件）
+            </button>
+            <button onClick={() => { setView("gantt"); setSelectMode(true); }}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${selectMode ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
+              ガント（選択）
             </button>
           </div>
           {canEdit && <CalendarButton storeName={store.name} tasks={tasks} />}
@@ -97,18 +121,38 @@ export default function StoreDetailPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
-        {view === "table" ? (
+      {/* ガント選択モード: タスク選択テーブル + ガントチャート */}
+      {selectMode ? (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-700">表示するタスクを選択 ({ganttSelectedIds.size}/{tasks.length}件)</h3>
+              <button onClick={handleSelectAll} className="text-xs text-blue-600 hover:underline">
+                {ganttSelectedIds.size === tasks.length ? "全解除" : "全選択"}
+              </button>
+            </div>
+            <TaskTable tasks={tasks} viewerRole={appUser.role} storeId={storeId} onRefresh={loadData}
+              showCheckboxes selectedTaskIds={ganttSelectedIds} onToggleSelect={toggleGanttSelect} />
+          </div>
+          {ganttSelectedIds.size > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <GanttChart tasks={ganttTasks} />
+            </div>
+          )}
+        </div>
+      ) : view === "table" ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
           <TaskTable tasks={tasks} viewerRole={appUser.role} storeId={storeId} onRefresh={loadData} />
-        ) : (
-          <GanttChart tasks={tasks} />
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <GanttChart tasks={ganttTasks} />
+        </div>
+      )}
 
       {showAddModal && canEdit && (
         <AddTaskModal storeId={storeId} onClose={() => setShowAddModal(false)} onCreated={loadData} />
       )}
-
       {showEditStore && canEdit && store && (
         <StoreEditModal store={store} onClose={() => setShowEditStore(false)} onUpdated={loadData} />
       )}
