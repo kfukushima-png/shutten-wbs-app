@@ -23,8 +23,17 @@ export default function StoreDetailPage() {
   const [view, setView] = useState<"table" | "gantt">("table");
   const [noAccess, setNoAccess] = useState(false);
   const [showEditStore, setShowEditStore] = useState(false);
-  const [ganttSelectedIds, setGanttSelectedIds] = useState<Set<string>>(new Set());
-  const [selectMode, setSelectMode] = useState(false);
+  const [ganttSelectedIds, setGanttSelectedIds] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set<string>();
+    try {
+      const saved = localStorage.getItem(`gantt-selected-${storeId}`);
+      return saved ? new Set(JSON.parse(saved)) : new Set<string>();
+    } catch { return new Set<string>(); }
+  });
+  const [selectMode, setSelectMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(`gantt-mode-${storeId}`) === "select";
+  });
 
   const canEdit = appUser?.role === "admin" || appUser?.role === "pm";
   const isOwner = appUser?.role === "owner";
@@ -48,6 +57,7 @@ export default function StoreDetailPage() {
     setGanttSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(taskId)) { next.delete(taskId); } else { next.add(taskId); }
+      localStorage.setItem(`gantt-selected-${storeId}`, JSON.stringify([...next]));
       return next;
     });
   };
@@ -55,8 +65,11 @@ export default function StoreDetailPage() {
   const handleSelectAll = () => {
     if (ganttSelectedIds.size === tasks.length) {
       setGanttSelectedIds(new Set());
+      localStorage.setItem(`gantt-selected-${storeId}`, "[]");
     } else {
-      setGanttSelectedIds(new Set(tasks.map((t) => t.id)));
+      const allIds = new Set(tasks.map((t) => t.id));
+      setGanttSelectedIds(allIds);
+      localStorage.setItem(`gantt-selected-${storeId}`, JSON.stringify([...allIds]));
     }
   };
 
@@ -94,15 +107,15 @@ export default function StoreDetailPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex bg-gray-100 rounded-lg p-1">
-            <button onClick={() => { setView("table"); setSelectMode(false); }}
+            <button onClick={() => { setView("table"); setSelectMode(false); localStorage.setItem(`gantt-mode-${storeId}`, "table"); }}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "table" && !selectMode ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
               テーブル
             </button>
-            <button onClick={() => { setView("gantt"); setSelectMode(false); }}
+            <button onClick={() => { setView("gantt"); setSelectMode(false); localStorage.setItem(`gantt-mode-${storeId}`, "gantt"); }}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "gantt" && !selectMode ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
               ガント（全件）
             </button>
-            <button onClick={() => { setView("gantt"); setSelectMode(true); }}
+            <button onClick={() => { setView("gantt"); setSelectMode(true); localStorage.setItem(`gantt-mode-${storeId}`, "select"); }}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${selectMode ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
               ガント（選択）
             </button>
