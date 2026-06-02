@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRequireRole } from "@/lib/auth-context";
-import { getBrands, createBrand, getTaskTemplatesByBrand, deleteBrand } from "@/lib/firestore";
+import { getBrands, createBrand, getTaskTemplatesByBrand, deleteBrand, deleteTaskTemplate } from "@/lib/firestore";
+import DeleteConfirmModal from "@/components/delete-confirm-modal";
 import type { Brand, TaskTemplate } from "@/types";
 import { sensitivityLabels, sensitivityColors } from "@/types";
 import Link from "next/link";
@@ -38,11 +39,28 @@ export default function BrandsPage() {
     setBrandTemplates(await getTaskTemplatesByBrand(brandId));
   };
 
-  const handleDelete = async (brandId: string) => {
-    if (confirm("このブランドを削除しますか？関連するテンプレートは残ります。")) {
-      await deleteBrand(brandId);
-      loadBrands();
+  const [deleteTarget, setDeleteTarget] = useState<{ brand: Brand; templateCount: number } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteClick = async (brand: Brand) => {
+    const templates = await getTaskTemplatesByBrand(brand.id);
+    setDeleteTarget({ brand, templateCount: templates.length });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    // テンプレートも一括削除
+    if (deleteTarget.templateCount > 0) {
+      const templates = await getTaskTemplatesByBrand(deleteTarget.brand.id);
+      for (const tpl of templates) {
+        await deleteTaskTemplate(tpl.id);
+      }
     }
+    await deleteBrand(deleteTarget.brand.id);
+    setDeleteTarget(null);
+    setDeleting(false);
+    loadBrands();
   };
 
   const handleExportCsv = (brand: Brand, templates: TaskTemplate[]) => {
@@ -127,7 +145,7 @@ export default function BrandsPage() {
                   className="px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg text-sm hover:bg-gray-100">
                   {expandedBrand === brand.id ? "閉じる" : "テンプレート一覧"}
                 </button>
-                <button onClick={() => handleDelete(brand.id)}
+                <button onClick={() => handleDeleteClick(brand)}
                   className="text-red-400 hover:text-red-600 text-xs px-2">削除</button>
               </div>
             </div>
@@ -172,6 +190,22 @@ export default function BrandsPage() {
 
       {brands.length === 0 && (
         <p className="text-center text-gray-400 py-12">ブランドがまだ登録されていません</p>
+      )}
+
+      {deleteTarget && (
+        <DeleteConfirmModal
+          title="ブランドを削除"
+          message={
+            deleteTarget.templateCount > 0
+              ? `「${deleteTarget.brand.name}」を削除します。このブランドに紐づくテンプレート ${deleteTarget.templateCount}件 も全て削除されます。この操作は取り消せません。削除するには、ブランド名を入力してください。`
+              : `「${deleteTarget.brand.name}」を削除します。削除するには、ブランド名を入力してください。`
+          }
+          confirmLabel="ブランド名を入力して確認"
+          confirmPlaceholder="ブランド名を入力"
+          confirmValue={deleteTarget.brand.name}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+        />
       )}
     </div>
   );
