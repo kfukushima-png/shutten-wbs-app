@@ -11,6 +11,7 @@ import {
   orderBy,
   Timestamp,
   setDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { getFirebaseDb } from "./firebase";
 import type { Store, Task, TaskTemplate, TaskComment, AppUser, TaskStatus, Brand } from "@/types";
@@ -258,6 +259,23 @@ export async function getTasksByStore(storeId: string): Promise<Task[]> {
   });
 }
 
+export async function getAllTasks(): Promise<Task[]> {
+  const snap = await getDocs(collection(db(), "tasks"));
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      ...data,
+      idealStartDate: toDate(data.idealStartDate || data.startDate || data.deadline),
+      idealEndDate: toDate(data.idealEndDate || data.idealDeadline || data.deadline),
+      startDate: toDate(data.startDate || data.deadline),
+      deadline: toDate(data.deadline),
+      createdAt: toDate(data.createdAt),
+      updatedAt: toDate(data.updatedAt),
+    } as Task;
+  });
+}
+
 export async function createTask(data: Omit<Task, "id" | "createdAt" | "updatedAt">) {
   const now = Timestamp.now();
   const ref = await addDoc(collection(db(), "tasks"), {
@@ -287,6 +305,14 @@ export async function updateTaskStatus(id: string, status: TaskStatus) {
 
 export async function deleteTask(id: string) {
   await deleteDoc(doc(db(), "tasks", id));
+}
+
+export async function updateTaskSortOrders(taskIds: string[]) {
+  const batch = writeBatch(db());
+  taskIds.forEach((id, index) => {
+    batch.update(doc(db(), "tasks", id), { sortOrder: index });
+  });
+  await batch.commit();
 }
 
 // --- Store初期タスク生成（ブランド別テンプレートから） ---
@@ -390,4 +416,14 @@ export async function getCommentCountsByStore(storeId: string): Promise<Record<s
   const counts: Record<string, number> = {};
   snap.docs.forEach((d) => { const taskId = d.data().taskId; counts[taskId] = (counts[taskId] || 0) + 1; });
   return counts;
+}
+
+export async function getCommentsByStore(storeId: string): Promise<TaskComment[]> {
+  const snap = await getDocs(
+    query(collection(db(), "comments"), where("storeId", "==", storeId), orderBy("createdAt", "desc"))
+  );
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return { id: d.id, ...data, createdAt: toDate(data.createdAt) } as TaskComment;
+  });
 }

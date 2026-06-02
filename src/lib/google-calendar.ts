@@ -71,16 +71,3 @@ export function buildTaskEvent(
   };
 }
 
-export async function addTasksToCalendar(
-  accessToken: string,
-  storeName: string,
-  tasks: { name: string; deadline: Date; details?: string }[],
-): Promise<number> {
-  let added = 0;
-  for (const task of tasks) {
-    const event = buildTaskEvent(storeName, task.name, task.deadline, task.details);
-    const result = await createCalendarEvent(accessToken, event);
-    if (result) added++;
-  }
-  return added;
-}

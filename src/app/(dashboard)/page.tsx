@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { getStores, getTasksByStore, getAllUsers } from "@/lib/firestore";
+import { getStores, getAllTasks, getAllUsers } from "@/lib/firestore";
 import type { Store, AppUser, Task } from "@/types";
 import { format, differenceInDays } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -39,13 +39,21 @@ export default function DashboardPage() {
     if (!appUser) return;
 
     (async () => {
-      const allStores = await getStores();
-      const now = new Date();
+      const [allStores, allTasksList, users] = await Promise.all([
+        getStores(),
+        getAllTasks(),
+        appUser.role === "admin" || appUser.role === "pm" ? getAllUsers() : Promise.resolve([]),
+      ]);
 
-      // PM一覧を取得（admin/pm用フィルター）
-      if (appUser.role === "admin" || appUser.role === "pm") {
-        const users = await getAllUsers();
+      if (users.length > 0) {
         setPmUsers(users.filter((u) => u.role === "pm" || u.role === "admin"));
+      }
+
+      const tasksByStore = new Map<string, Task[]>();
+      for (const t of allTasksList) {
+        const arr = tasksByStore.get(t.storeId) || [];
+        arr.push(t);
+        tasksByStore.set(t.storeId, arr);
       }
 
       let myStores: Store[];
@@ -57,14 +65,15 @@ export default function DashboardPage() {
         myStores = allStores.filter((s) => appUser.storeIds?.includes(s.id) || s.ownerId === appUser.uid);
       }
 
-      const progress: StoreProgress[] = [];
-      const urgent: UrgentTask[] = [];
+      const now = new Date();
       const oneWeekLater = new Date(now);
       oneWeekLater.setDate(oneWeekLater.getDate() + 7);
+      const progress: StoreProgress[] = [];
+      const urgent: UrgentTask[] = [];
 
       for (const store of myStores) {
-        const allTasks = await getTasksByStore(store.id);
-        const tasks = appUser.role === "owner" ? allTasks.filter((t) => t.visibleToOwner) : allTasks;
+        const storeTasks = tasksByStore.get(store.id) || [];
+        const tasks = appUser.role === "owner" ? storeTasks.filter((t) => t.visibleToOwner) : storeTasks;
         progress.push({
           store,
           total: tasks.length,
@@ -72,10 +81,8 @@ export default function DashboardPage() {
           overdue: tasks.filter((t) => t.status !== "done" && t.deadline < now).length,
         });
 
-        // 1週間以内の期限タスク + 期限未設定タスクを収集
         for (const t of tasks) {
           if (t.status === "done") continue;
-          // 期限未設定（1970年に近い or 無効な日付）
           const deadlineYear = t.deadline.getFullYear();
           if (deadlineYear < 2000 || isNaN(t.deadline.getTime())) {
             urgent.push({

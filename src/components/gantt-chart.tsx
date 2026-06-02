@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
-import { format, addDays, isValid } from "date-fns";
+import { useRef, useEffect, useState, useCallback } from "react";
+import { format, isValid } from "date-fns";
 import type { Task } from "@/types";
 
 interface Props {
@@ -20,11 +20,14 @@ function safeDate(d: unknown): Date {
     const parsed = new Date(d);
     if (isValid(parsed)) return parsed;
   }
+  if (d && typeof d === "object" && "toDate" in d && typeof (d as { toDate: () => Date }).toDate === "function") {
+    const parsed = (d as { toDate: () => Date }).toDate();
+    if (isValid(parsed)) return parsed;
+  }
   return new Date();
 }
 
 function ensureEndAfterStart(start: string, end: string): string {
-  // frappe-ganttはstart === endだと表示できないので、最低1日の差をつける
   if (end <= start) {
     const d = new Date(start);
     d.setDate(d.getDate() + 1);
@@ -33,78 +36,114 @@ function ensureEndAfterStart(start: string, end: string): string {
   return end;
 }
 
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      resolve();
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+function loadCSS(href: string): void {
+  if (document.querySelector(`link[href="${href}"]`)) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = href;
+  document.head.appendChild(link);
+}
+
+declare global {
+  interface Window {
+    Gantt: new (
+      wrapper: HTMLElement,
+      tasks: { id: string; name: string; start: string; end: string; progress: number; custom_class?: string }[],
+      options: Record<string, unknown>
+    ) => unknown;
+  }
+}
+
 export default function GanttChart({ tasks }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<string>("Week");
 
-  useEffect(() => {
+  const renderGantt = useCallback(async () => {
     if (!containerRef.current || tasks.length === 0) return;
 
-    const loadGantt = async () => {
-      try {
-        const { default: Gantt } = await import("frappe-gantt");
-        containerRef.current!.innerHTML = "";
-        setError(null);
+    try {
+      loadCSS("/frappe-gantt.min.css");
+      await loadScript("/frappe-gantt.min.js");
 
-        const ganttTasks: {
-          id: string;
-          name: string;
-          start: string;
-          end: string;
-          progress: number;
-          custom_class?: string;
-        }[] = [];
-
-        tasks.forEach((task, index) => {
-          const startDate = safeDate(task.startDate);
-          const endDate = safeDate(task.deadline);
-          const idealStart = safeDate(task.idealStartDate || task.startDate);
-          const idealEnd = safeDate(task.idealEndDate || task.deadline);
-
-          const actualStart = format(startDate, "yyyy-MM-dd");
-          const actualEnd = ensureEndAfterStart(actualStart, format(endDate, "yyyy-MM-dd"));
-          const idealStartStr = format(idealStart, "yyyy-MM-dd");
-          const idealEndStr = ensureEndAfterStart(idealStartStr, format(idealEnd, "yyyy-MM-dd"));
-
-          // 理想と実際が異なる場合、理想バーを表示
-          if (idealStartStr !== actualStart || idealEndStr !== actualEnd) {
-            ganttTasks.push({
-              id: `ideal-${task.id}-${index}`,
-              name: `[理想] ${task.name}`,
-              start: idealStartStr,
-              end: idealEndStr,
-              progress: 0,
-              custom_class: "gantt-ideal",
-            });
-          }
-
-          // 実際バー
-          ganttTasks.push({
-            id: `task-${task.id}-${index}`,
-            name: task.taskCode ? `${task.taskCode} ${task.name}` : task.name,
-            start: actualStart,
-            end: actualEnd,
-            progress: task.status === "done" ? 100 : task.status === "in_progress" ? 50 : 0,
-            custom_class: `gantt-${task.status}`,
-          });
-        });
-
-        if (ganttTasks.length === 0) return;
-
-        new Gantt(containerRef.current!, ganttTasks, {
-          view_mode: viewMode as "Day" | "Week" | "Month",
-          language: "ja",
-          readonly: true,
-        });
-      } catch (err) {
-        console.error("Gantt error:", err);
-        setError("ガントチャートの表示に失敗しました");
+      if (!window.Gantt) {
+        throw new Error("Gantt library not available");
       }
-    };
 
-    loadGantt();
+      containerRef.current.innerHTML = "";
+      setError(null);
+
+      const ganttTasks: {
+        id: string;
+        name: string;
+        start: string;
+        end: string;
+        progress: number;
+        custom_class?: string;
+      }[] = [];
+
+      tasks.forEach((task, index) => {
+        const startDate = safeDate(task.startDate);
+        const endDate = safeDate(task.deadline);
+        const idealStart = safeDate(task.idealStartDate || task.startDate);
+        const idealEnd = safeDate(task.idealEndDate || task.deadline);
+
+        const actualStart = format(startDate, "yyyy-MM-dd");
+        const actualEnd = ensureEndAfterStart(actualStart, format(endDate, "yyyy-MM-dd"));
+        const idealStartStr = format(idealStart, "yyyy-MM-dd");
+        const idealEndStr = ensureEndAfterStart(idealStartStr, format(idealEnd, "yyyy-MM-dd"));
+
+        if (idealStartStr !== actualStart || idealEndStr !== actualEnd) {
+          ganttTasks.push({
+            id: `ideal-${task.id}-${index}`,
+            name: `[理想] ${task.name}`,
+            start: idealStartStr,
+            end: idealEndStr,
+            progress: 0,
+            custom_class: "gantt-ideal",
+          });
+        }
+
+        ganttTasks.push({
+          id: `task-${task.id}-${index}`,
+          name: task.taskCode ? `${task.taskCode} ${task.name}` : task.name,
+          start: actualStart,
+          end: actualEnd,
+          progress: task.status === "done" ? 100 : task.status === "in_progress" ? 50 : 0,
+          custom_class: `gantt-${task.status}`,
+        });
+      });
+
+      if (ganttTasks.length === 0) return;
+
+      new window.Gantt(containerRef.current, ganttTasks, {
+        view_mode: viewMode,
+        language: "ja",
+        readonly: true,
+      });
+    } catch (err) {
+      console.error("Gantt error:", err);
+      setError("ガントチャートの表示に失敗しました");
+    }
   }, [tasks, viewMode]);
+
+  useEffect(() => {
+    renderGantt();
+  }, [renderGantt]);
 
   if (tasks.length === 0) {
     return <p className="text-gray-400 text-center py-8">タスクがありません</p>;

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { format } from "date-fns";
 import { useAuth } from "@/lib/auth-context";
-import { getStore, getTasksByStore } from "@/lib/firestore";
+import { getStore, getTasksByStore, getCommentsByStore } from "@/lib/firestore";
 import TaskTable from "@/components/task-table";
 import AddTaskModal from "@/components/add-task-modal";
 import CsvUpload from "@/components/csv-upload";
@@ -11,7 +12,7 @@ import GanttChart from "@/components/gantt-chart";
 import CalendarButton from "@/components/calendar-button";
 import ReportButton from "@/components/report-button";
 import StoreEditModal from "@/components/store-edit-modal";
-import type { Store, Task } from "@/types";
+import type { Store, Task, TaskComment } from "@/types";
 
 export default function StoreDetailPage() {
   const params = useParams();
@@ -19,6 +20,7 @@ export default function StoreDetailPage() {
   const { appUser, loading } = useAuth();
   const [store, setStore] = useState<Store | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [comments, setComments] = useState<(TaskComment & { taskName?: string })[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [view, setView] = useState<"table" | "gantt">("table");
   const [noAccess, setNoAccess] = useState(false);
@@ -30,18 +32,21 @@ export default function StoreDetailPage() {
       return saved ? new Set(JSON.parse(saved)) : new Set<string>();
     } catch { return new Set<string>(); }
   });
-  const [selectMode, setSelectMode] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem(`gantt-mode-${storeId}`) === "select";
-  });
 
   const canEdit = appUser?.role === "admin" || appUser?.role === "pm";
   const isOwner = appUser?.role === "owner";
 
   const loadData = async () => {
-    const [s, allTasks] = await Promise.all([getStore(storeId), getTasksByStore(storeId)]);
+    const [s, allTasks, allComments] = await Promise.all([
+      getStore(storeId),
+      getTasksByStore(storeId),
+      getCommentsByStore(storeId),
+    ]);
     setStore(s);
-    setTasks(isOwner ? allTasks.filter((t) => t.visibleToOwner) : allTasks);
+    const visibleTasks = isOwner ? allTasks.filter((t) => t.visibleToOwner) : allTasks;
+    setTasks(visibleTasks);
+    const taskMap = new Map(allTasks.map((t) => [t.id, t]));
+    setComments(allComments.map((c) => ({ ...c, taskName: taskMap.get(c.taskId)?.name })));
   };
 
   useEffect(() => {
@@ -73,7 +78,7 @@ export default function StoreDetailPage() {
     }
   };
 
-  const ganttTasks = selectMode && ganttSelectedIds.size > 0
+  const ganttTasks = ganttSelectedIds.size > 0
     ? tasks.filter((t) => ganttSelectedIds.has(t.id))
     : tasks;
 
@@ -107,20 +112,16 @@ export default function StoreDetailPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex bg-gray-100 rounded-lg p-1">
-            <button onClick={() => { setView("table"); setSelectMode(false); localStorage.setItem(`gantt-mode-${storeId}`, "table"); }}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "table" && !selectMode ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
+            <button onClick={() => setView("table")}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "table" ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
               テーブル
             </button>
-            <button onClick={() => { setView("gantt"); setSelectMode(false); localStorage.setItem(`gantt-mode-${storeId}`, "gantt"); }}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "gantt" && !selectMode ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
-              ガント（全件）
-            </button>
-            <button onClick={() => { setView("gantt"); setSelectMode(true); localStorage.setItem(`gantt-mode-${storeId}`, "select"); }}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${selectMode ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
-              ガント（選択）
+            <button onClick={() => setView("gantt")}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "gantt" ? "bg-white shadow text-gray-800" : "text-gray-500"}`}>
+              ガント
             </button>
           </div>
-          {canEdit && <CalendarButton storeName={store.name} tasks={tasks} />}
+          {canEdit && <CalendarButton storeName={store.name} tasks={tasks} onRefresh={loadData} />}
           {canEdit && <ReportButton storeId={storeId} storeName={store.name} />}
           {canEdit && (
             <>
@@ -134,8 +135,11 @@ export default function StoreDetailPage() {
         </div>
       </div>
 
-      {/* ガント選択モード: タスク選択テーブル + ガントチャート */}
-      {selectMode ? (
+      {view === "table" ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <TaskTable tasks={tasks} viewerRole={appUser.role} storeId={storeId} onRefresh={loadData} />
+        </div>
+      ) : (
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex items-center justify-between mb-3">
@@ -153,13 +157,35 @@ export default function StoreDetailPage() {
             </div>
           )}
         </div>
-      ) : view === "table" ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <TaskTable tasks={tasks} viewerRole={appUser.role} storeId={storeId} onRefresh={loadData} />
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <GanttChart tasks={ganttTasks} />
+      )}
+
+      {/* コメント履歴 */}
+      {comments.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 mt-4">
+          <h3 className="text-sm font-bold text-gray-700 mb-3">コメント履歴</h3>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {comments.map((c) => (
+              <div key={c.id} className="flex gap-3 pb-3 border-b border-gray-50 last:border-0">
+                {c.authorPhotoURL ? (
+                  <img src={c.authorPhotoURL} alt="" className="w-7 h-7 rounded-full mt-0.5 shrink-0" />
+                ) : (
+                  <div className="w-7 h-7 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 text-xs font-bold mt-0.5 shrink-0">
+                    {c.authorName?.[0] || "?"}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-medium text-gray-700">{c.authorName}</span>
+                    {c.taskName && (
+                      <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{c.taskName}</span>
+                    )}
+                    <span className="text-xs text-gray-400">{format(c.createdAt, "MM/dd HH:mm")}</span>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-0.5 whitespace-pre-wrap">{c.content}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

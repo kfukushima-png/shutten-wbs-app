@@ -141,6 +141,8 @@ export interface Task {
   ownerSensitivity: OwnerSensitivity;
   dependsOn: string; // 前提タスクのtaskCode（複数はスラッシュ区切り）
   isManual: boolean;
+  calendarEventId?: string;
+  sortOrder?: number;
   createdAt: Date;
   updatedAt: Date;
 }
