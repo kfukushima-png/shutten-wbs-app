@@ -191,7 +191,11 @@ function TaskRowContent({
         {/* ステータス */}
         <div className="pr-4 w-24 shrink-0">
           <select value={task.status} onChange={(e) => onStatusChange(task.id, e.target.value as TaskStatus)}
-            className="border rounded px-1 py-0.5 text-xs bg-white w-full">
+            className={`border rounded px-1 py-0.5 text-xs w-full font-medium ${
+              task.status === "done" ? "bg-green-50 text-green-700 border-green-200" :
+              task.status === "in_progress" ? "bg-blue-50 text-blue-700 border-blue-200" :
+              "bg-gray-50 text-gray-600 border-gray-200"
+            }`}>
             <option value="not_started">未着手</option>
             <option value="in_progress">進行中</option>
             <option value="done">完了</option>
@@ -311,7 +315,7 @@ export default function TaskTable({ tasks, viewerRole, storeId, onRefresh, gantt
     if (statusFilter !== "all" && statusFilter !== "undone" && t.status !== statusFilter) return false;
     return true;
   });
-  const isDraggable = canEdit && phaseFilter === "all" && statusFilter === "all";
+  const isDraggable = canEdit && phaseFilter === "all";
 
   const pointerSensor = useSensor(PointerSensor, {
     activationConstraint: { distance: 5 },

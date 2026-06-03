@@ -315,6 +315,10 @@ export async function updateTaskSortOrders(taskIds: string[]) {
   await batch.commit();
 }
 
+export async function updateTaskShowOnGantt(taskId: string, showOnGantt: boolean) {
+  await updateDoc(doc(db(), "tasks", taskId), { showOnGantt });
+}
+
 // --- Store初期タスク生成（ブランド別テンプレートから） ---
 export async function generateTasksFromTemplates(
   storeId: string,

@@ -27,8 +27,11 @@ export default function UsersPage() {
     if (hasAccess) loadData();
   }, [hasAccess]);
 
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+
   const pendingUsers = users.filter((u) => u.status === "pending");
   const activeUsers = users.filter((u) => u.status === "active");
+  const filteredActive = roleFilter === "all" ? activeUsers : activeUsers.filter((u) => u.role === roleFilter);
 
   const handleApprove = async (uid: string, role: UserRole) => {
     await updateUser(uid, { status: "active", role });
@@ -176,7 +179,24 @@ export default function UsersPage() {
       )}
 
       {/* アクティブユーザー */}
-      <h2 className="text-lg font-bold text-gray-700 mb-3">アクティブユーザー ({activeUsers.length}名)</h2>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h2 className="text-lg font-bold text-gray-700">アクティブユーザー ({filteredActive.length}/{activeUsers.length}名)</h2>
+        <div className="flex gap-1.5">
+          {[
+            { value: "all", label: "全て" },
+            { value: "admin", label: "admin" },
+            { value: "pm", label: "本部PM" },
+            { value: "owner", label: "オーナー" },
+          ].map((opt) => (
+            <button key={opt.value} onClick={() => setRoleFilter(opt.value)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                roleFilter === opt.value ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -189,7 +209,7 @@ export default function UsersPage() {
             </tr>
           </thead>
           <tbody>
-            {activeUsers.map((u) => {
+            {filteredActive.map((u) => {
               const assignedStores = stores.filter((s) => u.storeIds?.includes(s.id));
               const isMe = u.uid === currentUser?.uid;
               return (

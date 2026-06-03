@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import { useAuth } from "@/lib/auth-context";
-import { getStore, getTasksByStore, getCommentsByStore } from "@/lib/firestore";
+import { getStore, getTasksByStore, getCommentsByStore, updateTaskShowOnGantt, updateTaskStatus } from "@/lib/firestore";
 import TaskTable from "@/components/task-table";
 import AddTaskModal from "@/components/add-task-modal";
 import CsvUpload from "@/components/csv-upload";
@@ -26,7 +26,6 @@ export default function StoreDetailPage() {
   const [noAccess, setNoAccess] = useState(false);
   const [showEditStore, setShowEditStore] = useState(false);
   const [ganttSelectedIds, setGanttSelectedIds] = useState<Set<string>>(new Set());
-  const [ganttInitialized, setGanttInitialized] = useState(false);
 
   const canEdit = appUser?.role === "admin" || appUser?.role === "pm";
   const isOwner = appUser?.role === "owner";
@@ -57,20 +56,28 @@ export default function StoreDetailPage() {
     loadData();
   }, [loading, appUser, storeId]);
 
-  // タスクが読み込まれたら完了以外を自動選択（初回のみ）
+  // タスクのshowOnGanttフィールドからganttSelectedIdsを生成
   useEffect(() => {
-    if (!ganttInitialized && tasks.length > 0) {
-      setGanttSelectedIds(new Set(tasks.filter((t) => t.status !== "done").map((t) => t.id)));
-      setGanttInitialized(true);
+    if (tasks.length > 0) {
+      // showOnGanttが一度も設定されていない場合は完了以外を選択
+      const hasAnyGanttSetting = tasks.some((t) => t.showOnGantt !== undefined);
+      if (hasAnyGanttSetting) {
+        setGanttSelectedIds(new Set(tasks.filter((t) => t.showOnGantt).map((t) => t.id)));
+      } else {
+        setGanttSelectedIds(new Set(tasks.filter((t) => t.status !== "done").map((t) => t.id)));
+      }
     }
-  }, [tasks, ganttInitialized]);
+  }, [tasks]);
 
-  const toggleGanttSelect = (taskId: string) => {
+  const toggleGanttSelect = async (taskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    const newValue = !ganttSelectedIds.has(taskId);
     setGanttSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(taskId)) { next.delete(taskId); } else { next.add(taskId); }
       return next;
     });
+    await updateTaskShowOnGantt(taskId, newValue);
   };
 
   const ganttTasks = tasks.filter((t) => ganttSelectedIds.has(t.id));
@@ -136,7 +143,8 @@ export default function StoreDetailPage() {
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           {ganttTasks.length > 0 ? (
-            <GanttChart tasks={ganttTasks} openingDate={store.openingDate} />
+            <GanttChart tasks={ganttTasks} openingDate={store.openingDate}
+              onStatusChange={async (taskId, status) => { await updateTaskStatus(taskId, status); loadData(); }} />
           ) : (
             <p className="text-gray-400 text-center py-8">テーブルビューでガント表示するタスクを選択してください</p>
           )}

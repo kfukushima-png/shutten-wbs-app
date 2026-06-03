@@ -2,11 +2,12 @@
 
 import { useMemo, useRef, useState, useEffect } from "react";
 import { format, differenceInDays, isValid, min, max } from "date-fns";
-import type { Task } from "@/types";
+import type { Task, TaskStatus } from "@/types";
 
 interface Props {
   tasks: Task[];
   openingDate?: string | null;
+  onStatusChange?: (taskId: string, status: TaskStatus) => void;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -40,7 +41,7 @@ const STATUS_LABELS: Record<string, string> = {
   done: "完了",
 };
 
-export default function GanttChart({ tasks, openingDate }: Props) {
+export default function GanttChart({ tasks, openingDate, onStatusChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [viewMode, setViewMode] = useState<"auto" | "day" | "week" | "month">("auto");
@@ -330,12 +331,26 @@ export default function GanttChart({ tasks, openingDate }: Props) {
                 <span className="text-gray-400">期間</span>
                 <span>{format(safeDate(selectedTask.startDate) || new Date(), "M/d")} 〜 {format(safeDate(selectedTask.deadline) || new Date(), "M/d")}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-400">ステータス</span>
-                <span className={`font-medium ${
-                  selectedTask.status === "done" ? "text-green-600" :
-                  selectedTask.status === "in_progress" ? "text-blue-600" : "text-gray-500"
-                }`}>{STATUS_LABELS[selectedTask.status] || selectedTask.status}</span>
+                {onStatusChange ? (
+                  <select value={selectedTask.status}
+                    onChange={(e) => { onStatusChange(selectedTask.id, e.target.value as TaskStatus); }}
+                    className={`border rounded px-1.5 py-0.5 text-xs font-medium ${
+                      selectedTask.status === "done" ? "bg-green-50 text-green-700 border-green-200" :
+                      selectedTask.status === "in_progress" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                      "bg-gray-50 text-gray-600 border-gray-200"
+                    }`}>
+                    <option value="not_started">未着手</option>
+                    <option value="in_progress">進行中</option>
+                    <option value="done">完了</option>
+                  </select>
+                ) : (
+                  <span className={`font-medium ${
+                    selectedTask.status === "done" ? "text-green-600" :
+                    selectedTask.status === "in_progress" ? "text-blue-600" : "text-gray-500"
+                  }`}>{STATUS_LABELS[selectedTask.status] || selectedTask.status}</span>
+                )}
               </div>
               {selectedTask.assigneeName && (
                 <div className="flex justify-between">

@@ -143,6 +143,7 @@ export interface Task {
   isManual: boolean;
   calendarEventId?: string;
   sortOrder?: number;
+  showOnGantt?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
